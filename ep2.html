@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ep2 ログインしてから自分のデータだけが見えるまで｜誰でも分かるインフラ入門</title>
+<style>
+  :root{
+    --bg:#fbf8f2; --ink:#1f2430; --sub:#5b6170; --line:#d9d3c7;
+    --coral:#ff6b5b; --teal:#14a39a; --yellow:#ffc93c; --navy:#2b3a67; --purple:#7a5af8;
+    --card:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
+    line-height:1.6}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 28px 60px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:28px}
+  .kicker{display:inline-block;background:var(--ink);color:#fff;font-weight:700;font-size:13px;
+    padding:4px 12px;border-radius:999px;letter-spacing:.05em}
+  h1{font-size:34px;line-height:1.3;margin:10px 0 0;font-weight:900}
+  h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--yellow) 62%)}
+  .lead{color:var(--sub);font-size:14px;max-width:360px;margin:0}
+
+  section{margin-top:34px}
+  .sec-title{display:flex;align-items:center;gap:12px;margin:0 0 14px}
+  .sec-title .no{flex:none;width:38px;height:38px;border-radius:12px;background:var(--ink);color:#fff;
+    display:grid;place-items:center;font-weight:900;font-size:15px}
+  .sec-title h2{margin:0;font-size:21px;font-weight:900}
+  .sec-title span.note{color:var(--sub);font-size:13px}
+
+  /* ---------- 旅の地図 ---------- */
+  .map{background:var(--card);border:2px solid var(--ink);border-radius:22px;padding:26px 24px 22px;position:relative}
+  .map-grid{display:grid;grid-template-columns:150px 118px 118px 1fr;gap:14px 10px;align-items:stretch}
+  .lanes{display:contents}
+  .lane.l0{grid-column:2 / 5;grid-row:1}
+  .lock{grid-column:2;grid-row:2 / 5}
+  .lock.gate{grid-column:3}
+  .lane.l1{grid-column:4;grid-row:2}
+  .js-note{grid-column:4;grid-row:3}
+  .lane.l2{grid-column:4;grid-row:4}
+  .browser{grid-column:1;grid-row:1 / 5;display:flex;flex-direction:column;justify-content:center}
+  .node{background:#fff;border:2px solid var(--ink);border-radius:16px;padding:12px 12px 10px;position:relative;
+    box-shadow:4px 4px 0 var(--ink);min-width:0}
+  .node .ic{font-size:26px;line-height:1}
+  .node .nm{font-weight:900;font-size:15px;margin-top:4px}
+  .aws{font-size:11px;font-weight:700;color:var(--sub)}
+  .node .nm .aws{display:block;line-height:1.3}
+  .node .rl{font-size:12px;color:var(--sub);line-height:1.45;margin-top:2px}
+  .tatoe{margin-top:8px;font-size:12px;font-weight:700;background:#fff6dc;border-radius:10px;padding:5px 8px;
+    border:1.5px dashed #e0a800;line-height:1.4}
+  .tatoe::before{content:"たとえ";display:inline-block;font-size:10px;background:var(--yellow);color:var(--ink);
+    border-radius:6px;padding:0 6px;margin-right:6px;vertical-align:1px}
+
+
+  .dns-row{display:flex;align-items:center;gap:10px}
+  .lane{border-radius:16px;padding:12px 12px 12px;position:relative}
+  .lane.l1{background:#e7f6f4;border:2px solid var(--teal)}
+  .lane.l2{background:#fff0ee;border:2px solid var(--coral)}
+  .lane.l0{background:#efeefe;border:2px solid var(--purple)}
+  .lane-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .step{font-weight:900;font-size:13px;color:#fff;border-radius:8px;padding:2px 9px}
+  .l0 .step{background:var(--purple)} .l1 .step{background:var(--teal)} .l2 .step{background:var(--coral)}
+  .lane-head b{font-size:15px}
+  .lane-head code{font-size:12px;background:#fff;border-radius:6px;padding:1px 7px;border:1px solid var(--line)}
+  .flow{display:flex;align-items:stretch;gap:0}
+  .flow .node{flex:1}
+  .arrow{flex:none;width:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-size:10px;color:var(--sub);font-weight:700;text-align:center;line-height:1.2}
+  .arrow::before{content:"";display:block;width:100%;height:14px;
+    background:no-repeat center/34px 14px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 14'%3E%3Cpath d='M0 7h28' stroke='%231f2430' stroke-width='2.4'/%3E%3Cpath d='M24 1l8 6-8 6' fill='none' stroke='%231f2430' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E")}
+  .arrow.wide{width:98px;white-space:nowrap}
+  .arrow.wide::before{background-size:60px 14px}
+  .ret{margin-top:10px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ret .back{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid var(--ink);
+    border-radius:999px;padding:2px 10px}
+  .ret .back::before{content:"⟵";font-weight:900}
+  .ret .why{color:var(--sub);font-weight:500}
+
+  .lock{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    background:repeating-linear-gradient(135deg,#fff 0 8px,#f3f0ff 8px 16px);border:2px dashed var(--purple);
+    border-radius:16px;padding:10px 6px}
+  .lock.gate{background:repeating-linear-gradient(135deg,#fff 0 8px,#ffeceb 8px 16px);border-color:var(--coral)}
+  .lock.gate .st{color:var(--coral)}
+  .lock .ic{font-size:28px}
+  .lock .st{font-size:11px;font-weight:900;color:var(--purple)}
+  .lock .nm{font-size:13px;font-weight:900;line-height:1.3;margin:2px 0 6px}
+  .lock .rl{font-size:10.5px;color:var(--sub);line-height:1.4}
+  .lock .tatoe{font-size:10.5px;padding:4px 5px}
+  .who{font-size:10.5px;text-align:left;background:#fff;border:1.5px solid var(--ink);border-radius:8px;padding:5px 6px;margin:6px 0;line-height:1.45;width:100%}
+  .who b{display:inline-block;font-size:10px;background:var(--ink);color:#fff;border-radius:4px;padding:0 4px;margin-right:3px}
+  .here{display:inline-block;margin-top:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed var(--purple);border-radius:8px;padding:2px 7px}
+  .lock .tatoe::before{display:block;width:max-content;margin:0 auto 3px}
+
+  .js-note{margin:-6px 0 -6px 22px;font-size:12px;font-weight:700;color:var(--coral);display:flex;align-items:center;gap:6px}
+  .js-note::before{content:"↓";font-size:16px}
+
+  /* ---------- 4. 返事 ---------- */
+  .two{display:grid;grid-template-columns:1.25fr 1fr;gap:18px}
+  .panel{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:18px}
+  .panel h3{margin:0 0 10px;font-size:16px}
+  .codes{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .code{border-radius:14px;padding:10px;border:2px solid var(--ink);text-align:center}
+  .code .n{font-size:26px;font-weight:900;line-height:1.1}
+  .code .t{font-size:11px;color:var(--sub);font-family:ui-monospace,Menlo,monospace}
+  .code .s{font-size:12.5px;font-weight:700;margin-top:6px;line-height:1.35}
+  .c2{background:#e3f6e8}.c4{background:#fff4d6}.c5{background:#ffe3df}.c503{background:#ffe3df}
+  .two2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+  .basic .v+.v{margin-top:4px}
+  .basics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .basic{border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;background:#fdfcf9}
+  .basic .k{font-size:11px;font-weight:900;color:var(--sub);letter-spacing:.06em}
+  .basic .v{font-size:13px;margin-top:2px}
+  .basic .v b{font-family:ui-monospace,Menlo,monospace;background:#fff;border:1px solid var(--line);border-radius:5px;padding:0 5px;margin-right:4px}
+
+  /* ---------- 5,6 可用性/スケール ---------- */
+  .vs{display:grid;grid-template-columns:1fr 40px 1fr;gap:0;align-items:stretch}
+  .vs .mid{display:grid;place-items:center;font-weight:900;font-size:13px;color:var(--sub)}
+  .mini{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0 10px;flex-wrap:wrap}
+  .srv{width:66px;height:62px;border:2px solid var(--ink);border-radius:12px;background:#fff;display:grid;place-items:center;
+    font-size:22px;position:relative}
+  .srv small{position:absolute;bottom:-18px;font-size:10px;color:var(--sub);white-space:nowrap}
+  .srv.dead{background:#eee;opacity:.75}
+  .srv.dead::after{content:"✕";position:absolute;inset:0;display:grid;place-items:center;font-size:44px;color:var(--coral);font-weight:900}
+  .srv.new{border-style:dashed;border-color:var(--teal);color:var(--teal)}
+  .alb{padding:6px 10px;border:2px solid var(--ink);border-radius:10px;background:var(--yellow);font-weight:900;font-size:12px;text-align:center;line-height:1.3}
+  .people{font-size:20px;letter-spacing:-3px}
+  .mini .to{font-weight:900}
+  .keyline{font-size:14px;font-weight:900;margin:0}
+  .desc{font-size:12.5px;color:var(--sub);margin:4px 0 0}
+
+  /* ---------- 7. コスト ---------- */
+  .cost{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .cost2{display:grid;grid-template-columns:1.4fr 1fr;align-items:start;gap:14px;margin-top:14px}
+  .box{background:#eaf0ff;border:2px solid var(--navy);border-radius:18px;padding:16px}
+  .box h3{margin:0 0 6px;font-size:15px}
+  .box p{margin:4px 0;font-size:12.5px}
+  .pack{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 4px;font-size:12px;font-weight:700}
+  .pack span{background:#fff;border:1.5px solid var(--navy);border-radius:10px;padding:4px 9px}
+  .house{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:16px;box-shadow:4px 4px 0 var(--ink)}
+  .house .ic{font-size:34px;line-height:1}
+  .house .what{font-size:12px;font-weight:900;color:var(--sub);margin-top:6px}
+  .house .nm{font-size:19px;font-weight:900;margin:0 0 6px}
+  .house ul{margin:0;padding-left:1.1em;font-size:12.5px}
+  .house li{margin:2px 0}
+  .house li.good::marker{content:"◎ ";color:var(--teal)}
+  .house li.bad::marker{content:"△ ";color:var(--coral)}
+  .chart{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:14px 14px 10px}
+  .chart h3{margin:0;font-size:14px}
+  .chart svg{display:block;max-height:190px;margin:0 auto}
+  .chart p{margin:4px 0 0;font-size:11.5px;color:var(--sub)}
+  .punch{margin-top:14px;background:var(--ink);color:#fff;border-radius:16px;padding:14px 18px;font-weight:700;font-size:14.5px}
+  .punch b{color:var(--yellow)}
+
+  /* ---------- 確かめよう ---------- */
+  .try{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .try .t{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:14px}
+  .try .t .w{font-size:11px;font-weight:900;color:var(--sub)}
+  .try .t .h{font-weight:900;font-size:14.5px;margin:2px 0 6px}
+  .try code{display:block;background:var(--ink);color:#e9ffd9;border-radius:8px;padding:7px 10px;font-size:12px;margin:6px 0;font-family:ui-monospace,Menlo,monospace}
+  .try p{margin:0;font-size:12.5px;color:var(--sub)}
+
+  footer{margin-top:34px;font-size:11.5px;color:var(--sub);border-top:1px solid var(--line);padding-top:12px}
+
+  @media (max-width:900px){
+    .map-grid{grid-template-columns:1fr;gap:14px}
+    .lanes{display:contents}
+    .browser{order:1} .lane.l0{order:2} .lock{order:3} .lock.gate{order:4} .lane.l1{order:5} .js-note{order:6;margin:0 0 0 22px} .lane.l2{order:7}
+    .browser,.lock,.lock.gate,.lane.l0,.lane.l1,.lane.l2,.js-note{grid-row:auto;grid-column:auto}
+    .flow{flex-direction:column}
+    .arrow,.arrow.wide{width:100%;height:auto;flex-direction:row;gap:8px;padding:6px 0;white-space:nowrap}
+    .arrow::before,.arrow.wide::before{width:14px;height:30px;background-size:14px 30px;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 30'%3E%3Cpath d='M7 0v24' stroke='%231f2430' stroke-width='2.4'/%3E%3Cpath d='M1 20l6 8 6-8' fill='none' stroke='%231f2430' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E")}
+    .two,.two2,.vs,.cost,.cost2,.try{grid-template-columns:1fr}
+    .vs .mid{padding:8px 0}
+    .codes{grid-template-columns:repeat(2,1fr)}
+  }
+  @media print{ body{background:#fff} .wrap{padding:10px} section{break-inside:avoid} }
+
+  .intro{display:grid;grid-template-columns:1fr 1.25fr;gap:18px}
+  .amnesia{display:flex;flex-direction:column;gap:6px;margin:6px 0 10px}
+  .bubble{width:fit-content;max-width:90%;font-size:13px;font-weight:700;padding:6px 12px;border-radius:14px;border:1.5px solid var(--ink)}
+  .bubble.me{align-self:flex-start;background:#fff}
+  .bubble.rcv{align-self:flex-end;background:#fff6dc}
+  .sym{width:100%;border-collapse:separate;border-spacing:0 6px;font-size:13px;margin:4px 0 6px}
+  .sym th{font-size:11px;color:var(--sub);text-align:left;padding:0 8px}
+  .sym td{background:#fdfcf9;border-top:1.5px solid var(--line);border-bottom:1.5px solid var(--line);padding:8px}
+  .sym td:first-child{border-left:1.5px solid var(--line);border-radius:10px 0 0 10px}
+  .sym td:last-child{border-right:1.5px solid var(--line);border-radius:0 10px 10px 0}
+  .sym tr.hl td{background:#fff0ee;border-color:var(--coral)}
+  .ep{font-size:11px;font-weight:900;background:var(--ink);color:#fff;border-radius:6px;padding:1px 7px}
+  .ep.ep2{background:var(--coral)}
+  .rules{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .rule{background:#fff;border:2px solid var(--ink);border-radius:18px;padding:16px;box-shadow:4px 4px 0 var(--ink)}
+  .rule .ic{font-size:30px;line-height:1}
+  .rule .rn{font-size:11px;font-weight:900;color:#fff;display:inline-block;border-radius:6px;padding:1px 8px;margin-top:8px}
+  .r1 .rn{background:var(--purple)} .r2 .rn{background:var(--teal)} .r3 .rn{background:var(--coral)}
+  .rule .nm{font-size:19px;font-weight:900;margin:4px 0 4px}
+  .fail{display:flex;align-items:center;gap:10px;margin-top:12px;background:#fff4d6;border:2px solid var(--ink);border-radius:12px;padding:8px 12px;font-size:13px;font-weight:700}
+  .fail .n{font-size:24px;font-weight:900}
+  .fail small{font-weight:500;color:var(--sub)}
+  .incident{margin-top:14px;background:#fff0ee;border:2px solid var(--coral);border-radius:18px;padding:16px}
+  .incident .it{font-weight:900;font-size:15px;margin-bottom:6px}
+  .incident .url{font-size:13px;margin-bottom:6px}
+  .incident code{background:#fff;border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:12.5px}
+  .incident code b{color:var(--coral)}
+  .incident p{margin:0;font-size:13px}
+  .phase{background:#efeefe;border:2px solid var(--purple);border-radius:16px;padding:12px}
+  .phase.p2{background:#fff0ee;border-color:var(--coral)}
+  .ph-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .ph-head b{font-size:15px}
+  .ph-head .note{font-size:12px;color:var(--sub)}
+  .ph-head code{font-size:12px;background:#fff;border-radius:6px;padding:1px 7px;border:1px solid var(--line)}
+  .step.s1{background:var(--purple)} .step.s2{background:var(--coral)}
+  .chk{margin-top:8px;font-size:11.5px;font-weight:700;border-radius:8px;padding:4px 7px;border:1.5px solid}
+  .ck1{background:#efeefe;border-color:var(--purple)} .ck2{background:#fff0ee;border-color:var(--coral)}
+  .jwt{font-family:ui-monospace,Menlo,monospace;font-size:13px;word-break:break-all;background:var(--ink);color:#fff;border-radius:12px;padding:12px 14px;line-height:1.7}
+  .jwt .j1{color:#ff8a7d}.jwt .j2{color:#c4b5fd}.jwt .j3{color:#5eead4}
+  .jparts{display:grid;grid-template-columns:1fr 1.6fr 1fr;gap:10px;margin:12px 0}
+  .jp{border-radius:12px;padding:10px 12px;border:2px solid}
+  .jp .k{font-size:12px;font-weight:900}
+  .jp p{margin:4px 0 0;font-size:12.5px}
+  .jp pre{margin:4px 0 0;font-size:11.5px;white-space:pre-wrap}
+  .jp.p1{background:#fff0ee;border-color:#ff8a7d}.jp.p2{background:#f3f0ff;border-color:#a78bfa}.jp.p3{background:#e7f6f4;border-color:var(--teal)}
+  .warn,.good{border-radius:12px;padding:10px 12px;font-size:13px}
+  .warn{background:#fff4d6;border:2px solid #e0a800}.good{background:#e3f6e8;border:2px solid var(--teal)}
+  .warn p,.good p{margin:4px 0 0}
+  .ul{margin:6px 0 10px;padding-left:1.1em;font-size:13px}
+  .ul li{margin:3px 0}
+  .ul li.good{background:none;border:0;padding:0}
+  .ul li.good::marker{content:"◎ ";color:var(--teal)}
+  .ul li.bad::marker{content:"△ ";color:var(--coral)}
+  .ng{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .ngc{background:#fff;border:2px solid var(--ink);border-radius:16px;padding:14px}
+  .ngc .tag{font-size:10.5px;font-weight:900;color:#fff;border-radius:6px;padding:1px 7px}
+  .t2{background:var(--teal)}.t3{background:var(--coral)}.tz{background:var(--navy)}
+  .ngc .h{font-weight:900;font-size:15px;margin:6px 0 4px}
+  .ngc .h::before{content:"❌ "}
+  .ngc p{margin:0;font-size:12.5px;color:var(--sub)}
+  .ngc .ok{margin-top:8px;font-size:12px;font-weight:700;background:#e3f6e8;border-radius:8px;padding:5px 8px}
+  .try code.in{display:inline;background:#fff;color:var(--ink);border:1px solid var(--line);padding:0 5px;margin:0;font-size:11px}
+  .map .flow .node{min-width:0}
+  .store{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .house{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:16px;box-shadow:4px 4px 0 var(--ink)}
+  .house li.good{background:none;border:0;padding:0;border-radius:0;font-size:12.5px}
+  .cmp{width:100%;border-collapse:collapse;font-size:13px}
+  .cmp th{font-size:12px;text-align:left;background:var(--ink);color:#fff;padding:7px 10px}
+  .cmp th:first-child{background:transparent}
+  .cmp td{border-bottom:1.5px solid var(--line);padding:8px 10px;vertical-align:top}
+  .cmp td:first-child{font-weight:700;color:var(--sub);white-space:nowrap;width:130px}
+  .cmp td.good{background:#e3f6e8;border:0;border-bottom:1.5px solid var(--line);border-radius:0;font-size:13px;padding:8px 10px}
+  .cmp td.bad{background:#fff0ee}
+  @media (max-width:900px){ .store{grid-template-columns:1fr} .cmp td:first-child{white-space:normal;width:auto} }
+
+  @media (max-width:900px){
+    .intro,.rules,.jparts,.ng{grid-template-columns:1fr}
+  }
+
+  .dig{margin-top:14px;background:#fff;border:2px dashed var(--navy);border-radius:16px;padding:12px 14px}
+  .dig .dh{font-size:13px;font-weight:900;color:var(--navy);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .dig .dh small{font-size:11px;font-weight:700;color:var(--sub)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .chip{font:inherit;font-size:12.5px;text-align:left;line-height:1.45;cursor:pointer;background:#eaf0ff;color:var(--ink);
+    border:1.5px solid var(--navy);border-radius:12px;padding:6px 10px 6px 30px;position:relative}
+  .chip::before{content:"💬";position:absolute;left:9px;top:6px;font-size:13px}
+  .chip:hover{background:#dce6ff}
+  .chip.done{background:#e3f6e8;border-color:var(--teal)}
+  .chip.done::before{content:"✅"}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;
+    background:var(--ink);color:#fff;font-size:13px;font-weight:700;border-radius:999px;padding:10px 18px;transition:.25s;z-index:20;max-width:90vw;text-align:center}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .nav{position:sticky;top:0;z-index:10;background:rgba(251,248,242,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+  .nav .in{max-width:1180px;margin:0 auto;padding:8px 28px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:700}
+  .nav a{color:var(--ink);text-decoration:none;border:1.5px solid var(--ink);border-radius:999px;padding:3px 12px;background:#fff}
+  .nav a.cur{background:var(--ink);color:#fff}
+  .nav .home{margin-right:auto;border:0;background:none;padding:3px 0}
+  .next{display:flex;justify-content:space-between;gap:10px;margin-top:30px;flex-wrap:wrap}
+  .next a{flex:1;min-width:200px;text-decoration:none;color:var(--ink);background:#fff;border:2px solid var(--ink);border-radius:16px;padding:12px 16px;box-shadow:4px 4px 0 var(--ink);font-weight:900}
+  .next a small{display:block;font-size:11px;color:var(--sub);font-weight:700}
+  .next a.r{text-align:right}
+  @media (max-width:600px){ .sec-title{flex-wrap:wrap;row-gap:4px} .sec-title h2{font-size:19px} .sec-title span.note{flex-basis:100%;padding-left:50px} .wrap{padding:24px 16px 40px} h1{font-size:26px} .nav .in{padding:8px 16px} .map{padding:16px 12px} }
+</style>
+</head>
+<body>
+<nav class="nav"><div class="in"><a class="home" href="index.html">← 誰でも分かるインフラ入門</a><a href="ep1.html">Ep1</a><a href="ep2.html" class="cur">Ep2</a><a href="ep3.html">Ep3</a></div></nav>
+
+<div class="wrap">
+
+  <header>
+    <div>
+      <span class="kicker">誰でも分かるインフラ入門 Ep2</span>
+      <h1>ログインしてから<br><em>自分のデータだけ</em>が見えるまで</h1>
+    </div>
+    <p class="lead">認証・認可・トークン・APIキー。<br>バラバラに見える話も、全部「入館証をどう扱うか」の話。</p>
+  </header>
+
+  <!-- ===== 0. 前提 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">1</div><h2>そもそもの話：受付は記憶喪失</h2><span class="note">Ep1のおさらいから</span></div>
+    <div class="intro">
+      <div class="panel">
+        <h3>Webには、リクエストとレスポンスしかない</h3>
+        <div class="amnesia">
+          <div class="bubble me">🧑‍💻 注文一覧ください</div>
+          <div class="bubble rcv">🛎️ どちら様？</div>
+          <div class="bubble me">🧑‍💻 さっきログインした者です</div>
+          <div class="bubble rcv">🛎️ 覚えてません。どちら様？</div>
+        </div>
+        <p class="desc">サーバーはリクエストのたびに相手のことを忘れる（<b>ステートレス</b>）。だから<b>毎回「私は誰々です」を持たせて送る</b>しかない。</p>
+        <div class="tatoe" style="display:inline-block">記憶喪失の受付</div>
+      </div>
+      <div class="panel">
+        <h3>お互いに「本物です」を示す。でも道具は別物</h3>
+        <table class="sym">
+          <tr><th></th><th>誰が示す</th><th>何で示す</th><th>たとえ</th></tr>
+          <tr><td><span class="ep">Ep1</span></td><td>サーバー</td><td>証明書</td><td>お店の営業許可証</td></tr>
+          <tr class="hl"><td><span class="ep ep2">Ep2</span></td><td>あなた（クライアント）</td><td>パスワード → <b>トークン</b></td><td>受付で身分証を見せて、<b>入館証</b>をもらう</td></tr>
+        </table>
+        <p class="desc">ログインで一度だけ身分証（パスワード）を見せて、入館証（トークン）をもらう。あとは毎回、入館証を見せるだけ。</p>
+      </div>
+    </div>
+    <div class="punch">📌 逆に言えば、<b>入館証さえ手に入れれば、誰でも「あなた」になれる。</b>だからセキュリティは、入館証をどう扱うかの話になる。</div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="HTTPがステートレスとはどういう意味か、ログイン状態をどうやって保っているかと一緒に教えて">HTTPがステートレスとはどういう意味か、ログイン状態をどうやって保っているかと一緒に教えて</button><button class="chip" type="button" data-q="セッションとトークンの違いを教えて">セッションとトークンの違いを教えて</button></div></div>
+  </section>
+
+  <!-- ===== 3原則 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">2</div><h2>基本の考え方は3つだけ</h2><span class="note">このあとの話は、全部このどれかに入る</span></div>
+    <div class="rules">
+      <div class="rule r1"><div class="ic">✍️</div><div class="rn">原則1</div><p class="nm">偽造させない</p><p class="desc">勝手に作った入館証は使えないようにする。<br>→ <b>署名</b></p><div class="tatoe">偽造防止のホログラム</div></div>
+      <div class="rule r2"><div class="ic">🙈</div><div class="rn">原則2</div><p class="nm">盗ませない</p><p class="desc">HTTPSで運ぶ、安全な場所に保管する、コードに書かない。<br>→ <b>隠す</b></p><div class="tatoe">入館証を首から下げたまま外を歩かない</div></div>
+      <div class="rule r3"><div class="ic">⏳</div><div class="rn">原則3</div><p class="nm">盗まれても被害を小さく</p><p class="desc">有効期限を短くする、無効にできるようにする、権限を最小限にする。<br>→ <b>盗まれる前提で設計する</b></p><div class="tatoe">入館証は1日限り・入れるフロアも限定</div></div>
+    </div>
+    <p class="desc" style="margin-top:10px">💡「絶対に盗まれない」は不可能。だから原則3まで考えるのが、今どきの設計。</p>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="「盗まれる前提で設計する」とは具体的にどういうことか、Webアプリの例で教えて">「盗まれる前提で設計する」とは具体的にどういうことか、Webアプリの例で教えて</button><button class="chip" type="button" data-q="最小権限の原則を、AWSのIAMを例に教えて">最小権限の原則を、AWSのIAMを例に教えて</button></div></div>
+  </section>
+
+  <!-- ===== 1. 認証と認可 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">3</div><h2>認証と認可は別物</h2><span class="note">一番よく混ざるところ</span></div>
+    <div class="vs">
+      <div class="panel">
+        <h3>認証 ＝ <span style="color:var(--purple)">あなたは誰？</span></h3>
+        <p class="desc">本物の「あなた」かどうかを確かめる。ログインがこれ。</p>
+        <div class="tatoe" style="display:inline-block">受付で身分証を見せる</div>
+        <div class="fail"><span class="n">401</span><span>失敗すると「あなた誰？」<br><small>入館証がない・期限切れ・偽物</small></span></div>
+      </div>
+      <div class="mid">VS</div>
+      <div class="panel">
+        <h3>認可 ＝ <span style="color:var(--coral)">あなたは何をしていい？</span></h3>
+        <p class="desc">誰かは分かった上で、そのデータや操作が許されているかを確かめる。</p>
+        <div class="tatoe" style="display:inline-block">社員証で入れる部屋が決まっている</div>
+        <div class="fail f3"><span class="n">403</span><span>失敗すると「あなたは通せません」<br><small>本人だけど、そこは権限外</small></span></div>
+      </div>
+    </div>
+    <div class="incident">
+      <div class="it">🚨 よくある事故：認可チェックの漏れ</div>
+      <div class="url"><code>GET /api/orders/<b>123</b></code> 自分の注文 → <code>GET /api/orders/<b>124</b></code> に書き換えたら<b>他人の注文が見えた</b></div>
+      <p>ログイン（認証）はちゃんとしているのに、「その注文はあなたのもの？」（認可）を確かめていないと起きる。<b>WAFも素通りする</b>（攻撃っぽくない、普通のリクエストだから）。画面でボタンを隠しても、APIを直接叩かれたら意味がない。<b>認可は必ずサーバー側で</b>。</p>
+    </div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="401と403の違いを具体例で教えて">401と403の違いを具体例で教えて</button><button class="chip" type="button" data-q="IDOR（認可漏れで他人のデータが見える脆弱性）とは何か、防ぎ方と一緒に教えて">IDOR（認可漏れで他人のデータが見える脆弱性）とは何か、防ぎ方と一緒に教えて</button><button class="chip" type="button" data-q="認可チェックをフロントエンドだけでやると何が危ないか教えて">認可チェックをフロントエンドだけでやると何が危ないか教えて</button></div></div>
+  </section>
+
+  <!-- ===== 2. ログインの旅 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">4</div><h2>ログインの旅</h2><span class="note">入館証をもらって、使うまで</span></div>
+    <div class="map">
+      <div class="phase">
+        <div class="ph-head"><span class="step s1">A</span><b>入館証をもらう（ログイン）</b><span class="note">身分確認は外部の「役所」に任せる ＝ <b>OIDC</b></span></div>
+        <div class="flow">
+          <div class="node"><div class="ic">🧑‍💻</div><div class="nm">ブラウザ</div><div class="rl">ログインボタンを押すと、役所の画面に移動する</div></div>
+          <div class="arrow"></div>
+          <div class="node"><div class="ic">🏛️</div><div class="nm">認証サービス（IdP）<span class="aws">（Cognito / Google / Entra ID など）</span></div><div class="rl">ここでパスワードを入力する。<b>アプリ側はパスワードを預からなくていい</b></div><div class="tatoe">身分証を確認してくれる役所</div></div>
+          <div class="arrow wide">入館証を発行</div>
+          <div class="node"><div class="ic">🎫</div><div class="nm">トークン（JWT）</div><div class="rl">「誰か」「いつまで有効か」などが書かれた入館証。ブラウザ（アプリ）が受け取る</div><div class="tatoe">入館証</div></div>
+        </div>
+        <p class="desc" style="margin-top:8px">※実際は、いったん「引換券（認可コード）」を受け取って、それを入館証に交換する手順を挟む。入門では「役所が入館証をくれる」でOK。</p>
+      </div>
+      <div class="js-note" style="margin:12px 0 12px 22px">以降は、リクエストのたびに入館証を見せる</div>
+      <div class="phase p2">
+        <div class="ph-head"><span class="step s2">B</span><b>入館証を見せてデータをもらう</b><code>Authorization: Bearer eyJhbGci...</code></div>
+        <div class="flow">
+          <div class="node"><div class="ic">🧑‍💻</div><div class="nm">ブラウザ</div><div class="rl">APIを叩くたびに、ヘッダーに入館証を付ける</div></div>
+          <div class="arrow"></div>
+          <div class="node"><div class="ic">🛎️</div><div class="nm">APIゲートウェイ<span class="aws">（API Gateway）</span></div><div class="rl">入館証の<b>署名</b>と<b>有効期限</b>をチェック</div><div class="chk ck1">認証：本物の入館証？ → ダメなら <b>401</b></div></div>
+          <div class="arrow"></div>
+          <div class="node"><div class="ic">⚙️</div><div class="nm">アプリサーバ<span class="aws">（EC2 / Lambda など）</span></div><div class="rl">入館証の持ち主と、データの持ち主を突き合わせる</div><div class="chk ck2">認可：このデータはあなたの？ → ダメなら <b>403</b></div></div>
+          <div class="arrow"></div>
+          <div class="node"><div class="ic">🗄️</div><div class="nm">データベース</div><div class="rl">「あなたの分だけ」を取り出す</div></div>
+        </div>
+      </div>
+    </div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="OIDCの認可コードフローを、登場人物ごとに順番に説明して">OIDCの認可コードフローを、登場人物ごとに順番に説明して</button><button class="chip" type="button" data-q="OAuthとOIDCの違いを教えて">OAuthとOIDCの違いを教えて</button><button class="chip" type="button" data-q="IDトークンとアクセストークンの違いを教えて">IDトークンとアクセストークンの違いを教えて</button></div></div>
+  </section>
+
+  <!-- ===== 3. JWT ===== -->
+  <section>
+    <div class="sec-title"><div class="no">5</div><h2>入館証（JWT）の中身</h2><span class="note">原則1「偽造させない」の正体</span></div>
+    <div class="panel">
+      <div class="jwt"><span class="j1">eyJhbGciOiJSUzI1NiJ9</span>.<span class="j2">eyJzdWIiOiJ1c2VyLTEyMyIsImV4cCI6MTc2...</span>.<span class="j3">SflKxwRJSMeKKF2QT4fwpMeJf36POk6y...</span></div>
+      <div class="jparts">
+        <div class="jp p1"><div class="k">ヘッダー</div><p>署名のやり方（アルゴリズム）</p></div>
+        <div class="jp p2"><div class="k">中身（ペイロード）</div><pre>{
+  "sub": "user-123",     ← 誰か
+  "email": "taro@example.com",
+  "exp": 1763456789      ← 有効期限
+}</pre></div>
+        <div class="jp p3"><div class="k">署名</div><p>役所だけが持つ鍵で押したハンコ。中身を1文字でも書き換えると合わなくなる</p></div>
+      </div>
+      <div class="two2">
+        <div class="warn"><b>⚠️ 中身は誰でも読める</b><p>暗号化ではなく、ただの変換（Base64URL）。だから<b>パスワードや個人の秘密を入れてはいけない</b>。</p></div>
+        <div class="good"><b>✅ でも書き換えはできない</b><p>守っているのは「隠すこと」ではなく<b>署名</b>。「user-123」を「user-124」に書き換えると、ハンコが合わなくなって弾かれる。</p></div>
+      </div>
+    </div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="JWTの署名がどうやって改ざんを防いでいるのか、仕組みを教えて">JWTの署名がどうやって改ざんを防いでいるのか、仕組みを教えて</button><button class="chip" type="button" data-q="JWTに入れてはいけない情報の例を教えて">JWTに入れてはいけない情報の例を教えて</button><button class="chip" type="button" data-q="JWTを無効化（ログアウト）するのが難しいと言われる理由を教えて">JWTを無効化（ログアウト）するのが難しいと言われる理由を教えて</button></div></div>
+  </section>
+
+  <!-- ===== 4. APIキー ===== -->
+  <section>
+    <div class="sec-title"><div class="no">6</div><h2>APIキーとトークンの違い</h2></div>
+    <div class="vs">
+      <div class="panel">
+        <h3>🔑 APIキー ＝ 合鍵</h3>
+        <ul class="ul">
+          <li class="bad">誰が使っているかは分からない（持っている人＝使える人）</li>
+          <li class="bad">基本、自分で無効にするまでずっと使える</li>
+          <li class="bad">漏れたら、気づくまで使われ放題</li>
+          <li class="good">仕組みが簡単。<b>サーバー同士の通信</b>や外部サービスの利用向き</li>
+        </ul>
+        <div class="tatoe" style="display:inline-block">ポストに隠した合鍵</div>
+      </div>
+      <div class="mid">VS</div>
+      <div class="panel">
+        <h3>🎫 トークン ＝ 名前と期限つきの入館証</h3>
+        <ul class="ul">
+          <li class="good">誰の入館証か書いてある</li>
+          <li class="good">期限が短い（数分〜1時間など）</li>
+          <li class="good">盗まれても、すぐ使えなくなる（原則3）</li>
+          <li class="bad">仕組みが少し複雑。<b>ユーザーのログイン</b>向き</li>
+        </ul>
+        <div class="tatoe" style="display:inline-block">名前入り・当日限りの入館証</div>
+      </div>
+    </div>
+    <p class="desc" style="margin-top:10px">💡 ブラウザで動くJSにAPIキーを書くと、DevToolsで<b>誰でも見られる</b>。フロントに置いた時点で「隠せていない」。</p>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="APIキーとOAuthのトークンの使い分けを教えて">APIキーとOAuthのトークンの使い分けを教えて</button><button class="chip" type="button" data-q="APIキーが漏れたときの対応手順を教えて">APIキーが漏れたときの対応手順を教えて</button></div></div>
+  </section>
+
+  <!-- ===== 5. 置き場所 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">7</div><h2>入館証をブラウザのどこに置く？</h2><span class="note">localStorage と Cookie の違い</span></div>
+    <div class="store">
+      <div class="house">
+        <div class="ic">🗄️</div><div class="what">localStorage</div><p class="nm">机の引き出し</p>
+        <p class="desc">JSで出し入れする保管場所。APIを叩くときに、<b>自分で取り出して</b>ヘッダーに付ける。</p>
+        <ul>
+          <li class="good">勝手には送られない（なりすまし送信が起きにくい）</li>
+          <li class="good">別ドメインのAPIにも付けやすい</li>
+          <li class="bad">JSから読める＝部屋に入った泥棒（XSS）に<b>中身を持ち出される</b></li>
+        </ul>
+      </div>
+      <div class="house">
+        <div class="ic">🪪</div><div class="what">Cookie（HttpOnly / Secure / SameSite）</div><p class="nm">首から下げた入館証</p>
+        <p class="desc">ブラウザが、そのドメインへのリクエストに<b>自動で付けて</b>送ってくれる。</p>
+        <ul>
+          <li class="good">HttpOnlyならJSから読めない＝中身を持ち出されにくい</li>
+          <li class="bad">自動で送られる＝偽サイト経由で<b>勝手にかざされる</b>（CSRF）ので対策が必要</li>
+          <li class="bad">基本は同じドメイン向け</li>
+        </ul>
+      </div>
+      <div class="house">
+        <div class="ic">🧠</div><div class="what">メモリ（JSの変数）</div><p class="nm">手に握っておく</p>
+        <p class="desc">保存せず、画面を開いている間だけ持っておく。</p>
+        <ul>
+          <li class="good">保存されないので、一番持ち出されにくい</li>
+          <li class="bad">リロードやタブを閉じると消える</li>
+        </ul>
+        <p class="desc" style="margin-top:6px">→ よく「更新用トークンはHttpOnly Cookie、本命のトークンはメモリ」と組み合わせる</p>
+      </div>
+    </div>
+    <div class="panel" style="margin-top:14px">
+      <h3>ひと目で比べる</h3>
+      <table class="cmp">
+        <tr><th></th><th>localStorage</th><th>Cookie（HttpOnly）</th></tr>
+        <tr><td>JSから読める？</td><td class="bad">読める</td><td class="good">読めない</td></tr>
+        <tr><td>自動で送られる？</td><td class="good">送られない（自分で付ける）</td><td class="bad">送られる</td></tr>
+        <tr><td>一番気にする攻撃</td><td>XSS（スクリプトを仕込まれて<b>盗まれる</b>）</td><td>CSRF（偽サイトから<b>勝手に送られる</b>）</td></tr>
+        <tr><td>主な対策</td><td>XSSを作らない、トークンの期限を短く</td><td>SameSite属性、CSRFトークン</td></tr>
+        <tr><td>向いている構成</td><td>APIが別ドメイン、社内ツールなど</td><td>画面とAPIが同じドメイン（Ep1の「CDNでまとめる」構成）</td></tr>
+      </table>
+      <div class="tatoe" style="display:inline-block;margin-top:10px">SameSite＝「うちの建物のゲートでしかピッと反応しない入館証」</div>
+    </div>
+    <div class="two2">
+      <div class="warn"><b>⚠️ どっちを選んでも、XSSがあれば負け</b><p>Cookieは中身を盗まれにくいだけで、XSSがあれば「その場で本人として操作される」ことは防げない。本当の対策は<b>XSSを作らないこと</b>（入力値をそのままHTMLに埋め込まない、など）。</p></div>
+      <div class="good"><b>✅ 迷ったときの目安</b><p>一般向けで、画面とAPIが同じドメイン → <b>HttpOnly Cookie</b>。<br>別ドメインのAPIや社内ツール → <b>localStorage＋短い期限</b>でも可。<br>大事なのは「なぜそこに置いたか」を説明できること。</p></div>
+    </div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="XSSとCSRFの違いを、攻撃の流れで教えて">XSSとCSRFの違いを、攻撃の流れで教えて</button><button class="chip" type="button" data-q="Cookieの HttpOnly・Secure・SameSite 属性がそれぞれ何を防ぐか教えて">Cookieの HttpOnly・Secure・SameSite 属性がそれぞれ何を防ぐか教えて</button><button class="chip" type="button" data-q="SPAでトークンをどこに保存するべきか、選択肢ごとのメリット・デメリットで教えて">SPAでトークンをどこに保存するべきか、選択肢ごとのメリット・デメリットで教えて</button></div></div>
+  </section>
+
+  <!-- ===== 5. やっちゃダメ集 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">8</div><h2>AIが平気でやってくる「やっちゃダメ集」</h2><span class="note">レビューでここに気づければ合格</span></div>
+    <div class="ng">
+      <div class="ngc"><span class="tag t2">原則2</span><div class="h">鍵をコードに直書き</div><p>そのままGitHubにpushすると、公開リポジトリなら<b>数分で拾われて悪用される</b>こともある。</p><div class="ok">→ シークレット管理（Secrets Manager / Parameter Store など）や環境変数から読む</div></div>
+      <div class="ngc"><span class="tag t2">原則2</span><div class="h">フロントにAPIキー</div><p>ブラウザに届いたものは全部見られる。</p><div class="ok">→ キーが必要な処理はサーバー側でやる</div></div>
+      <div class="ngc"><span class="tag t2">原則2</span><div class="h">ログにトークンを出力</div><p>ログを見られる人全員が「あなた」になれる。</p><div class="ok">→ トークンやパスワードはログに出さない（マスクする）</div></div>
+      <div class="ngc"><span class="tag t3">原則3</span><div class="h">有効期限がやたら長い</div><p>「面倒だから期限30日」は、盗まれたら30日使われ放題。</p><div class="ok">→ 期限は短く。更新用のトークン（リフレッシュトークン）で延長する</div></div>
+      <div class="ngc"><span class="tag t3">原則3</span><div class="h">権限が全部入り</div><p>とりあえず管理者権限、IAMで「*」（何でもOK）。</p><div class="ok">→ 必要な分だけ（最小権限）</div></div>
+      <div class="ngc"><span class="tag tz">認可</span><div class="h">チェックが画面側だけ</div><p>ボタンを隠しても、APIを直接叩けば通る。</p><div class="ok">→ 認可は必ずサーバー側で</div></div>
+    </div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="AWSのSecrets ManagerとParameter Storeの違いと使い分けを教えて">AWSのSecrets ManagerとParameter Storeの違いと使い分けを教えて</button><button class="chip" type="button" data-q="誤ってGitHubにアクセスキーをpushしてしまったときの対処手順を教えて">誤ってGitHubにアクセスキーをpushしてしまったときの対処手順を教えて</button><button class="chip" type="button" data-q="AIが生成したコードでよく見るセキュリティ上の問題点を教えて">AIが生成したコードでよく見るセキュリティ上の問題点を教えて</button></div></div>
+  </section>
+
+  <!-- ===== 確かめよう ===== -->
+  <section>
+    <div class="sec-title"><div class="no">✔</div><h2>自分のブラウザで確かめてみよう</h2></div>
+    <div class="try">
+      <div class="t">
+        <div class="w">3章｜401と403を見る</div><div class="h">わざと失敗させる</div>
+        <code>トークンなしで叩く → 401</code>
+        <p>検証環境で、権限のないデータを叩いて403が返ることも確認する。返らなかったら、それはバグ。</p>
+      </div>
+      <div class="t">
+        <div class="w">4章｜入館証を見つける</div><div class="h">DevToolsでトークンを探す</div>
+        <code>F12 → Network → APIの通信 → Headers</code>
+        <p><code class="in">Authorization: Bearer ...</code> が付いているのを見る。Applicationタブで保存場所も確認。</p>
+      </div>
+      <div class="t">
+        <div class="w">5章｜入館証を読む</div><div class="h">JWTをデコードしてみる</div>
+        <code>jwt.io などのデコーダに貼る</code>
+        <p>中身が普通に読めることを確認する。<b>⚠️ 本番のトークンは外部サイトに貼らない</b>。検証環境のものを使うこと。</p>
+      </div>
+    </div>
+  </section>
+
+<div class="next"><a href="ep1.html"><small>← 前へ Ep1</small>URLを叩いてから画面が出るまで</a><a class="r" href="ep3.html"><small>次へ Ep3 →</small>コードをpushしてから本番に反映されるまで</a></div>
+  <footer>※構成はAWSを例にした一例です。Cookieとセッションで管理する方式など、システムによって形は変わります。　｜　誰でも分かるインフラ入門 Ep2</footer>
+</div>
+
+
+<div class="toast" id="toast"></div>
+<script>
+(function(){
+  var SUFFIX = "\n\n※私はアプリ開発者で、インフラは初心者です。たとえ話を使って説明して、最後に参考になる公式ドキュメントも教えてください。";
+  var t = document.getElementById('toast'), timer;
+  function show(msg){ t.textContent = msg; t.classList.add('on'); clearTimeout(timer); timer = setTimeout(function(){ t.classList.remove('on'); }, 2200); }
+  function fallback(text){
+    var ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly','');
+    ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+    var ok = false; try { ok = document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta); return ok;
+  }
+  document.querySelectorAll('.chip').forEach(function(b){
+    b.addEventListener('click', function(){
+      var text = b.getAttribute('data-q') + SUFFIX;
+      var done = function(){ b.classList.add('done'); show('コピーしました。いつものAIに貼り付けて聞いてみよう'); };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done, function(){ fallback(text) ? done() : show('コピーできませんでした。長押しで選択してね'); });
+      } else { fallback(text) ? done() : show('コピーできませんでした。長押しで選択してね'); }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

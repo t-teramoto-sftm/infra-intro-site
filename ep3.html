@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ep3 コードをpushしてから本番に反映されるまで｜誰でも分かるインフラ入門</title>
+<style>
+  :root{
+    --bg:#fbf8f2; --ink:#1f2430; --sub:#5b6170; --line:#d9d3c7;
+    --coral:#ff6b5b; --teal:#14a39a; --yellow:#ffc93c; --navy:#2b3a67; --purple:#7a5af8;
+    --card:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
+    line-height:1.6}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 28px 60px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:28px}
+  .kicker{display:inline-block;background:var(--ink);color:#fff;font-weight:700;font-size:13px;
+    padding:4px 12px;border-radius:999px;letter-spacing:.05em}
+  h1{font-size:34px;line-height:1.3;margin:10px 0 0;font-weight:900}
+  h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--yellow) 62%)}
+  .lead{color:var(--sub);font-size:14px;max-width:360px;margin:0}
+
+  section{margin-top:34px}
+  .sec-title{display:flex;align-items:center;gap:12px;margin:0 0 14px}
+  .sec-title .no{flex:none;width:38px;height:38px;border-radius:12px;background:var(--ink);color:#fff;
+    display:grid;place-items:center;font-weight:900;font-size:15px}
+  .sec-title h2{margin:0;font-size:21px;font-weight:900}
+  .sec-title span.note{color:var(--sub);font-size:13px}
+
+  /* ---------- 旅の地図 ---------- */
+  .map{background:var(--card);border:2px solid var(--ink);border-radius:22px;padding:26px 24px 22px;position:relative}
+  .map-grid{display:grid;grid-template-columns:150px 118px 118px 1fr;gap:14px 10px;align-items:stretch}
+  .lanes{display:contents}
+  .lane.l0{grid-column:2 / 5;grid-row:1}
+  .lock{grid-column:2;grid-row:2 / 5}
+  .lock.gate{grid-column:3}
+  .lane.l1{grid-column:4;grid-row:2}
+  .js-note{grid-column:4;grid-row:3}
+  .lane.l2{grid-column:4;grid-row:4}
+  .browser{grid-column:1;grid-row:1 / 5;display:flex;flex-direction:column;justify-content:center}
+  .node{background:#fff;border:2px solid var(--ink);border-radius:16px;padding:12px 12px 10px;position:relative;
+    box-shadow:4px 4px 0 var(--ink);min-width:0}
+  .node .ic{font-size:26px;line-height:1}
+  .node .nm{font-weight:900;font-size:15px;margin-top:4px}
+  .aws{font-size:11px;font-weight:700;color:var(--sub)}
+  .node .nm .aws{display:block;line-height:1.3}
+  .node .rl{font-size:12px;color:var(--sub);line-height:1.45;margin-top:2px}
+  .tatoe{margin-top:8px;font-size:12px;font-weight:700;background:#fff6dc;border-radius:10px;padding:5px 8px;
+    border:1.5px dashed #e0a800;line-height:1.4}
+  .tatoe::before{content:"たとえ";display:inline-block;font-size:10px;background:var(--yellow);color:var(--ink);
+    border-radius:6px;padding:0 6px;margin-right:6px;vertical-align:1px}
+
+
+  .dns-row{display:flex;align-items:center;gap:10px}
+  .lane{border-radius:16px;padding:12px 12px 12px;position:relative}
+  .lane.l1{background:#e7f6f4;border:2px solid var(--teal)}
+  .lane.l2{background:#fff0ee;border:2px solid var(--coral)}
+  .lane.l0{background:#efeefe;border:2px solid var(--purple)}
+  .lane-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .step{font-weight:900;font-size:13px;color:#fff;border-radius:8px;padding:2px 9px}
+  .l0 .step{background:var(--purple)} .l1 .step{background:var(--teal)} .l2 .step{background:var(--coral)}
+  .lane-head b{font-size:15px}
+  .lane-head code{font-size:12px;background:#fff;border-radius:6px;padding:1px 7px;border:1px solid var(--line)}
+  .flow{display:flex;align-items:stretch;gap:0}
+  .flow .node{flex:1}
+  .arrow{flex:none;width:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-size:10px;color:var(--sub);font-weight:700;text-align:center;line-height:1.2}
+  .arrow::before{content:"";display:block;width:100%;height:14px;
+    background:no-repeat center/34px 14px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 14'%3E%3Cpath d='M0 7h28' stroke='%231f2430' stroke-width='2.4'/%3E%3Cpath d='M24 1l8 6-8 6' fill='none' stroke='%231f2430' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E")}
+  .arrow.wide{width:98px;white-space:nowrap}
+  .arrow.wide::before{background-size:60px 14px}
+  .ret{margin-top:10px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ret .back{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid var(--ink);
+    border-radius:999px;padding:2px 10px}
+  .ret .back::before{content:"⟵";font-weight:900}
+  .ret .why{color:var(--sub);font-weight:500}
+
+  .lock{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    background:repeating-linear-gradient(135deg,#fff 0 8px,#f3f0ff 8px 16px);border:2px dashed var(--purple);
+    border-radius:16px;padding:10px 6px}
+  .lock.gate{background:repeating-linear-gradient(135deg,#fff 0 8px,#ffeceb 8px 16px);border-color:var(--coral)}
+  .lock.gate .st{color:var(--coral)}
+  .lock .ic{font-size:28px}
+  .lock .st{font-size:11px;font-weight:900;color:var(--purple)}
+  .lock .nm{font-size:13px;font-weight:900;line-height:1.3;margin:2px 0 6px}
+  .lock .rl{font-size:10.5px;color:var(--sub);line-height:1.4}
+  .lock .tatoe{font-size:10.5px;padding:4px 5px}
+  .who{font-size:10.5px;text-align:left;background:#fff;border:1.5px solid var(--ink);border-radius:8px;padding:5px 6px;margin:6px 0;line-height:1.45;width:100%}
+  .who b{display:inline-block;font-size:10px;background:var(--ink);color:#fff;border-radius:4px;padding:0 4px;margin-right:3px}
+  .here{display:inline-block;margin-top:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed var(--purple);border-radius:8px;padding:2px 7px}
+  .lock .tatoe::before{display:block;width:max-content;margin:0 auto 3px}
+
+  .js-note{margin:-6px 0 -6px 22px;font-size:12px;font-weight:700;color:var(--coral);display:flex;align-items:center;gap:6px}
+  .js-note::before{content:"↓";font-size:16px}
+
+  /* ---------- 4. 返事 ---------- */
+  .two{display:grid;grid-template-columns:1.25fr 1fr;gap:18px}
+  .panel{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:18px}
+  .panel h3{margin:0 0 10px;font-size:16px}
+  .codes{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .code{border-radius:14px;padding:10px;border:2px solid var(--ink);text-align:center}
+  .code .n{font-size:26px;font-weight:900;line-height:1.1}
+  .code .t{font-size:11px;color:var(--sub);font-family:ui-monospace,Menlo,monospace}
+  .code .s{font-size:12.5px;font-weight:700;margin-top:6px;line-height:1.35}
+  .c2{background:#e3f6e8}.c4{background:#fff4d6}.c5{background:#ffe3df}.c503{background:#ffe3df}
+  .two2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+  .basic .v+.v{margin-top:4px}
+  .basics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .basic{border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;background:#fdfcf9}
+  .basic .k{font-size:11px;font-weight:900;color:var(--sub);letter-spacing:.06em}
+  .basic .v{font-size:13px;margin-top:2px}
+  .basic .v b{font-family:ui-monospace,Menlo,monospace;background:#fff;border:1px solid var(--line);border-radius:5px;padding:0 5px;margin-right:4px}
+
+  /* ---------- 5,6 可用性/スケール ---------- */
+  .vs{display:grid;grid-template-columns:1fr 40px 1fr;gap:0;align-items:stretch}
+  .vs .mid{display:grid;place-items:center;font-weight:900;font-size:13px;color:var(--sub)}
+  .mini{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0 10px;flex-wrap:wrap}
+  .srv{width:66px;height:62px;border:2px solid var(--ink);border-radius:12px;background:#fff;display:grid;place-items:center;
+    font-size:22px;position:relative}
+  .srv small{position:absolute;bottom:-18px;font-size:10px;color:var(--sub);white-space:nowrap}
+  .srv.dead{background:#eee;opacity:.75}
+  .srv.dead::after{content:"✕";position:absolute;inset:0;display:grid;place-items:center;font-size:44px;color:var(--coral);font-weight:900}
+  .srv.new{border-style:dashed;border-color:var(--teal);color:var(--teal)}
+  .alb{padding:6px 10px;border:2px solid var(--ink);border-radius:10px;background:var(--yellow);font-weight:900;font-size:12px;text-align:center;line-height:1.3}
+  .people{font-size:20px;letter-spacing:-3px}
+  .mini .to{font-weight:900}
+  .keyline{font-size:14px;font-weight:900;margin:0}
+  .desc{font-size:12.5px;color:var(--sub);margin:4px 0 0}
+
+  /* ---------- 7. コスト ---------- */
+  .cost{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .cost2{display:grid;grid-template-columns:1.4fr 1fr;align-items:start;gap:14px;margin-top:14px}
+  .box{background:#eaf0ff;border:2px solid var(--navy);border-radius:18px;padding:16px}
+  .box h3{margin:0 0 6px;font-size:15px}
+  .box p{margin:4px 0;font-size:12.5px}
+  .pack{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 4px;font-size:12px;font-weight:700}
+  .pack span{background:#fff;border:1.5px solid var(--navy);border-radius:10px;padding:4px 9px}
+  .house{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:16px;box-shadow:4px 4px 0 var(--ink)}
+  .house .ic{font-size:34px;line-height:1}
+  .house .what{font-size:12px;font-weight:900;color:var(--sub);margin-top:6px}
+  .house .nm{font-size:19px;font-weight:900;margin:0 0 6px}
+  .house ul{margin:0;padding-left:1.1em;font-size:12.5px}
+  .house li{margin:2px 0}
+  .house li.good::marker{content:"◎ ";color:var(--teal)}
+  .house li.bad::marker{content:"△ ";color:var(--coral)}
+  .chart{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:14px 14px 10px}
+  .chart h3{margin:0;font-size:14px}
+  .chart svg{display:block;max-height:190px;margin:0 auto}
+  .chart p{margin:4px 0 0;font-size:11.5px;color:var(--sub)}
+  .punch{margin-top:14px;background:var(--ink);color:#fff;border-radius:16px;padding:14px 18px;font-weight:700;font-size:14.5px}
+  .punch b{color:var(--yellow)}
+
+  /* ---------- 確かめよう ---------- */
+  .try{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .try .t{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:14px}
+  .try .t .w{font-size:11px;font-weight:900;color:var(--sub)}
+  .try .t .h{font-weight:900;font-size:14.5px;margin:2px 0 6px}
+  .try code{display:block;background:var(--ink);color:#e9ffd9;border-radius:8px;padding:7px 10px;font-size:12px;margin:6px 0;font-family:ui-monospace,Menlo,monospace}
+  .try p{margin:0;font-size:12.5px;color:var(--sub)}
+
+  footer{margin-top:34px;font-size:11.5px;color:var(--sub);border-top:1px solid var(--line);padding-top:12px}
+
+  @media (max-width:900px){
+    .map-grid{grid-template-columns:1fr;gap:14px}
+    .lanes{display:contents}
+    .browser{order:1} .lane.l0{order:2} .lock{order:3} .lock.gate{order:4} .lane.l1{order:5} .js-note{order:6;margin:0 0 0 22px} .lane.l2{order:7}
+    .browser,.lock,.lock.gate,.lane.l0,.lane.l1,.lane.l2,.js-note{grid-row:auto;grid-column:auto}
+    .flow{flex-direction:column}
+    .arrow,.arrow.wide{width:100%;height:auto;flex-direction:row;gap:8px;padding:6px 0;white-space:nowrap}
+    .arrow::before,.arrow.wide::before{width:14px;height:30px;background-size:14px 30px;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 30'%3E%3Cpath d='M7 0v24' stroke='%231f2430' stroke-width='2.4'/%3E%3Cpath d='M1 20l6 8 6-8' fill='none' stroke='%231f2430' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E")}
+    .two,.two2,.vs,.cost,.cost2,.try{grid-template-columns:1fr}
+    .vs .mid{padding:8px 0}
+    .codes{grid-template-columns:repeat(2,1fr)}
+  }
+  @media print{ body{background:#fff} .wrap{padding:10px} section{break-inside:avoid} }
+
+  .intro{display:grid;grid-template-columns:1fr 1.25fr;gap:18px}
+  .amnesia{display:flex;flex-direction:column;gap:6px;margin:6px 0 10px}
+  .bubble{width:fit-content;max-width:90%;font-size:13px;font-weight:700;padding:6px 12px;border-radius:14px;border:1.5px solid var(--ink)}
+  .bubble.me{align-self:flex-start;background:#fff}
+  .bubble.rcv{align-self:flex-end;background:#fff6dc}
+  .sym{width:100%;border-collapse:separate;border-spacing:0 6px;font-size:13px;margin:4px 0 6px}
+  .sym th{font-size:11px;color:var(--sub);text-align:left;padding:0 8px}
+  .sym td{background:#fdfcf9;border-top:1.5px solid var(--line);border-bottom:1.5px solid var(--line);padding:8px}
+  .sym td:first-child{border-left:1.5px solid var(--line);border-radius:10px 0 0 10px}
+  .sym td:last-child{border-right:1.5px solid var(--line);border-radius:0 10px 10px 0}
+  .sym tr.hl td{background:#fff0ee;border-color:var(--coral)}
+  .ep{font-size:11px;font-weight:900;background:var(--ink);color:#fff;border-radius:6px;padding:1px 7px}
+  .ep.ep2{background:var(--coral)}
+  .rules{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .rule{background:#fff;border:2px solid var(--ink);border-radius:18px;padding:16px;box-shadow:4px 4px 0 var(--ink)}
+  .rule .ic{font-size:30px;line-height:1}
+  .rule .rn{font-size:11px;font-weight:900;color:#fff;display:inline-block;border-radius:6px;padding:1px 8px;margin-top:8px}
+  .r1 .rn{background:var(--purple)} .r2 .rn{background:var(--teal)} .r3 .rn{background:var(--coral)}
+  .rule .nm{font-size:19px;font-weight:900;margin:4px 0 4px}
+  .fail{display:flex;align-items:center;gap:10px;margin-top:12px;background:#fff4d6;border:2px solid var(--ink);border-radius:12px;padding:8px 12px;font-size:13px;font-weight:700}
+  .fail .n{font-size:24px;font-weight:900}
+  .fail small{font-weight:500;color:var(--sub)}
+  .incident{margin-top:14px;background:#fff0ee;border:2px solid var(--coral);border-radius:18px;padding:16px}
+  .incident .it{font-weight:900;font-size:15px;margin-bottom:6px}
+  .incident .url{font-size:13px;margin-bottom:6px}
+  .incident code{background:#fff;border:1px solid var(--line);border-radius:6px;padding:1px 7px;font-size:12.5px}
+  .incident code b{color:var(--coral)}
+  .incident p{margin:0;font-size:13px}
+  .phase{background:#efeefe;border:2px solid var(--purple);border-radius:16px;padding:12px}
+  .phase.p2{background:#fff0ee;border-color:var(--coral)}
+  .ph-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .ph-head b{font-size:15px}
+  .ph-head .note{font-size:12px;color:var(--sub)}
+  .ph-head code{font-size:12px;background:#fff;border-radius:6px;padding:1px 7px;border:1px solid var(--line)}
+  .step.s1{background:var(--purple)} .step.s2{background:var(--coral)}
+  .chk{margin-top:8px;font-size:11.5px;font-weight:700;border-radius:8px;padding:4px 7px;border:1.5px solid}
+  .ck1{background:#efeefe;border-color:var(--purple)} .ck2{background:#fff0ee;border-color:var(--coral)}
+  .jwt{font-family:ui-monospace,Menlo,monospace;font-size:13px;word-break:break-all;background:var(--ink);color:#fff;border-radius:12px;padding:12px 14px;line-height:1.7}
+  .jwt .j1{color:#ff8a7d}.jwt .j2{color:#c4b5fd}.jwt .j3{color:#5eead4}
+  .jparts{display:grid;grid-template-columns:1fr 1.6fr 1fr;gap:10px;margin:12px 0}
+  .jp{border-radius:12px;padding:10px 12px;border:2px solid}
+  .jp .k{font-size:12px;font-weight:900}
+  .jp p{margin:4px 0 0;font-size:12.5px}
+  .jp pre{margin:4px 0 0;font-size:11.5px;white-space:pre-wrap}
+  .jp.p1{background:#fff0ee;border-color:#ff8a7d}.jp.p2{background:#f3f0ff;border-color:#a78bfa}.jp.p3{background:#e7f6f4;border-color:var(--teal)}
+  .warn,.good{border-radius:12px;padding:10px 12px;font-size:13px}
+  .warn{background:#fff4d6;border:2px solid #e0a800}.good{background:#e3f6e8;border:2px solid var(--teal)}
+  .warn p,.good p{margin:4px 0 0}
+  .ul{margin:6px 0 10px;padding-left:1.1em;font-size:13px}
+  .ul li{margin:3px 0}
+  .ul li.good{background:none;border:0;padding:0}
+  .ul li.good::marker{content:"◎ ";color:var(--teal)}
+  .ul li.bad::marker{content:"△ ";color:var(--coral)}
+  .ng{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .ngc{background:#fff;border:2px solid var(--ink);border-radius:16px;padding:14px}
+  .ngc .tag{font-size:10.5px;font-weight:900;color:#fff;border-radius:6px;padding:1px 7px}
+  .t2{background:var(--teal)}.t3{background:var(--coral)}.tz{background:var(--navy)}
+  .ngc .h{font-weight:900;font-size:15px;margin:6px 0 4px}
+  .ngc .h::before{content:"❌ "}
+  .ngc p{margin:0;font-size:12.5px;color:var(--sub)}
+  .ngc .ok{margin-top:8px;font-size:12px;font-weight:700;background:#e3f6e8;border-radius:8px;padding:5px 8px}
+  .try code.in{display:inline;background:#fff;color:var(--ink);border:1px solid var(--line);padding:0 5px;margin:0;font-size:11px}
+  .map .flow .node{min-width:0}
+  .store{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .house{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:16px;box-shadow:4px 4px 0 var(--ink)}
+  .house li.good{background:none;border:0;padding:0;border-radius:0;font-size:12.5px}
+  .cmp{width:100%;border-collapse:collapse;font-size:13px}
+  .cmp th{font-size:12px;text-align:left;background:var(--ink);color:#fff;padding:7px 10px}
+  .cmp th:first-child{background:transparent}
+  .cmp td{border-bottom:1.5px solid var(--line);padding:8px 10px;vertical-align:top}
+  .cmp td:first-child{font-weight:700;color:var(--sub);white-space:nowrap;width:130px}
+  .cmp td.good{background:#e3f6e8;border:0;border-bottom:1.5px solid var(--line);border-radius:0;font-size:13px;padding:8px 10px}
+  .cmp td.bad{background:#fff0ee}
+  @media (max-width:900px){ .store{grid-template-columns:1fr} .cmp td:first-child{white-space:normal;width:auto} }
+
+  @media (max-width:900px){
+    .intro,.rules,.jparts,.ng{grid-template-columns:1fr}
+  }
+  .fear{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .fc{background:#fff;border:2px solid var(--ink);border-radius:16px;padding:14px;font-size:26px;display:flex;flex-direction:column;gap:4px;box-shadow:4px 4px 0 var(--ink)}
+  .fc b{font-size:14.5px}
+  .fc span{font-size:12.5px;color:var(--sub)}
+  .step.s0{background:var(--navy)}
+  .flow.pipe{margin-top:4px}
+  .node.ci{background:#fff}
+  .badge{font-weight:900;font-size:16px;margin-right:4px;color:var(--ink)}
+  .envs{display:flex;align-items:stretch}
+  .env{flex:1;border-radius:14px;border:2px solid var(--ink);padding:10px 12px;background:#fff}
+  .env .eh{font-weight:900;font-size:14.5px}
+  .env p{margin:2px 0 6px;font-size:12.5px;color:var(--sub)}
+  .env.e1{background:#e7f6f4}.env.e2{background:#efeefe}.env.e3{background:#fff0ee}
+  .tag2{display:inline-block;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed var(--ink);border-radius:8px;padding:2px 8px}
+  .arrow.gate{width:70px;color:var(--coral);font-size:11px}
+  .ci4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}
+  .cc{background:#fff;border:2px solid var(--ink);border-radius:16px;padding:14px;font-size:24px;display:flex;flex-direction:column;gap:4px}
+  .cc b{font-size:15px}
+  .cc span{font-size:12.5px;color:var(--sub)}
+  .mini2{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:8px 0 10px;font-weight:700}
+  .mini2 .box{background:#fff6dc;border:2px solid var(--ink);border-radius:10px;padding:4px 10px;font-size:13px}
+  .mini2 .box.bad{background:#ffe3df;text-decoration:line-through}
+  .mini2 .pill{background:#fff;border:1.5px solid var(--ink);border-radius:999px;padding:2px 10px;font-size:12px}
+  .cmp.small td,.cmp.small th{font-size:12px;padding:6px 8px}
+  .cmp.small td:first-child{width:auto}
+  .rel{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .rel .mini{justify-content:flex-start;margin:10px 0 0}
+  .srv.new{font-size:14px;font-weight:900}
+  .srv{font-size:14px;font-weight:900}
+  .ngp{background:#fff0ee;border-color:var(--coral)}
+  .okp{background:#e3f6e8;border-color:var(--teal)}
+  .try .t.soon{border-style:dashed;background:#f6f4ef}
+  @media (max-width:900px){
+    .fear,.ci4,.rel{grid-template-columns:1fr 1fr}
+    .envs{flex-direction:column}
+    .envs .arrow{width:100%}
+  }
+  @media (max-width:520px){ .fear,.ci4,.rel{grid-template-columns:1fr} }
+
+  .dig{margin-top:14px;background:#fff;border:2px dashed var(--navy);border-radius:16px;padding:12px 14px}
+  .dig .dh{font-size:13px;font-weight:900;color:var(--navy);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .dig .dh small{font-size:11px;font-weight:700;color:var(--sub)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .chip{font:inherit;font-size:12.5px;text-align:left;line-height:1.45;cursor:pointer;background:#eaf0ff;color:var(--ink);
+    border:1.5px solid var(--navy);border-radius:12px;padding:6px 10px 6px 30px;position:relative}
+  .chip::before{content:"💬";position:absolute;left:9px;top:6px;font-size:13px}
+  .chip:hover{background:#dce6ff}
+  .chip.done{background:#e3f6e8;border-color:var(--teal)}
+  .chip.done::before{content:"✅"}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;
+    background:var(--ink);color:#fff;font-size:13px;font-weight:700;border-radius:999px;padding:10px 18px;transition:.25s;z-index:20;max-width:90vw;text-align:center}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .nav{position:sticky;top:0;z-index:10;background:rgba(251,248,242,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+  .nav .in{max-width:1180px;margin:0 auto;padding:8px 28px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:700}
+  .nav a{color:var(--ink);text-decoration:none;border:1.5px solid var(--ink);border-radius:999px;padding:3px 12px;background:#fff}
+  .nav a.cur{background:var(--ink);color:#fff}
+  .nav .home{margin-right:auto;border:0;background:none;padding:3px 0}
+  .next{display:flex;justify-content:space-between;gap:10px;margin-top:30px;flex-wrap:wrap}
+  .next a{flex:1;min-width:200px;text-decoration:none;color:var(--ink);background:#fff;border:2px solid var(--ink);border-radius:16px;padding:12px 16px;box-shadow:4px 4px 0 var(--ink);font-weight:900}
+  .next a small{display:block;font-size:11px;color:var(--sub);font-weight:700}
+  .next a.r{text-align:right}
+  @media (max-width:600px){ .sec-title{flex-wrap:wrap;row-gap:4px} .sec-title h2{font-size:19px} .sec-title span.note{flex-basis:100%;padding-left:50px} .wrap{padding:24px 16px 40px} h1{font-size:26px} .nav .in{padding:8px 16px} .map{padding:16px 12px} }
+</style>
+</head>
+<body>
+<nav class="nav"><div class="in"><a class="home" href="index.html">← 誰でも分かるインフラ入門</a><a href="ep1.html">Ep1</a><a href="ep2.html">Ep2</a><a href="ep3.html" class="cur">Ep3</a></div></nav>
+<div class="wrap">
+
+  <header>
+    <div>
+      <span class="kicker">誰でも分かるインフラ入門 Ep3</span>
+      <h1>コードをpushしてから<br><em>本番に反映される</em>まで</h1>
+    </div>
+    <p class="lead">CI/CDは「手作業がめんどいから自動化」…だけじゃない。<br>本質は<b>毎回同じ手順で、安全に、戻せること</b>。</p>
+  </header>
+
+  <!-- ===== 0 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">1</div><h2>手作業リリースの恐怖</h2><span class="note">あるある、ありませんか</span></div>
+    <div class="fear">
+      <div class="fc">📄<b>手順書の1行を飛ばした</b><span>深夜で眠くて、気づいたら朝</span></div>
+      <div class="fc">🤷<b>本番だけ動かない</b><span>「自分のPCでは動いたのに」（Ep1の再来）</span></div>
+      <div class="fc">🕵️<b>誰が何を変えたか分からない</b><span>サーバーに入って手でコマンドを叩いた跡だけが残る</span></div>
+      <div class="fc">😱<b>戻し方が分からない</b><span>前のバージョンがどれだったかも怪しい</span></div>
+    </div>
+    <div class="punch">📌 怖いのは「面倒」なことじゃなくて、<b>毎回やり方が微妙に違って、戻せない</b>こと。CI/CDはそれを機械に任せる仕組み。</div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="手作業リリースでよく起きる事故と、CI/CDでそれがどう防げるか教えて">手作業リリースでよく起きる事故と、CI/CDでそれがどう防げるか教えて</button></div></div>
+  </section>
+
+  <!-- ===== 地図 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">2</div><h2>旅の地図</h2><span class="note">ベルトコンベアに乗せたら、あとは自動</span></div>
+    <div class="map">
+      <div class="ph-head"><span class="step s0">①</span><b>pushすると、パイプラインが動き出す</b><span class="note">パイプライン（GitHub Actions / GitLab CI / CodePipeline など）＝ <b>工場のベルトコンベア</b></span></div>
+      <div class="flow pipe">
+        <div class="node"><div class="ic">🧑‍💻</div><div class="nm">push</div><div class="rl">コードをリポジトリに送る。<b>人がやるのはここまで</b></div></div>
+        <div class="arrow"></div>
+        <div class="node ci"><div class="ic">🔍</div><div class="nm"><span class="badge b2">②</span>CI：検査</div><div class="rl">ビルド・テスト・静的解析・脆弱性スキャン。<b>1つでも落ちたらそこで止まる</b></div><div class="tatoe">出荷前の検品</div></div>
+        <div class="arrow"></div>
+        <div class="node pk"><div class="ic">📦</div><div class="nm"><span class="badge b3">③</span>荷造り</div><div class="rl">アプリを箱（コンテナイメージなど）に詰める。<b>作るのは1回だけ</b></div><div class="tatoe">引っ越しの箱</div></div>
+        <div class="arrow"></div>
+        <div class="node"><div class="ic">🏬</div><div class="nm">箱の倉庫<span class="aws">（ECR など）</span></div><div class="rl">できた箱にバージョン番号を付けて保管。<b>戻すときもここから出す</b></div></div>
+      </div>
+      <div class="js-note" style="margin:14px 0 10px 22px">同じ箱を、順番に配っていく（CD）</div>
+      <div class="envs">
+        <div class="env e1"><div class="eh">🧪 開発環境</div><p>まず置いてみる</p><div class="tag2">名札：開発用の設定</div></div>
+        <div class="arrow"></div>
+        <div class="env e2"><div class="eh">🔬 検証環境</div><p>本番そっくりの場所で確認</p><div class="tag2">名札：検証用の設定</div></div>
+        <div class="arrow gate">✋ 承認</div>
+        <div class="env e3"><div class="eh">🚀 本番環境</div><p>お客さんに届く</p><div class="tag2">名札：本番用の設定</div></div>
+      </div>
+      <p class="desc" style="margin-top:10px"><span class="badge b4">④</span>環境ごとの違いは、箱の外から入れる（名札）　<span class="badge b5">⑤</span>開発 → 検証 → 本番の順に配る。本番の前に人の承認を挟む＝<b>試食してから本販売</b></p>
+    </div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="CIとCDの違いを教えて">CIとCDの違いを教えて</button><button class="chip" type="button" data-q="継続的デリバリーと継続的デプロイの違いを教えて">継続的デリバリーと継続的デプロイの違いを教えて</button></div></div>
+  </section>
+
+  <!-- ===== 2 CI ===== -->
+  <section>
+    <div class="sec-title"><div class="no">3</div><h2>CI：自動の品質の門番</h2><span class="note">地図の②。AI時代に一番効くところ</span></div>
+    <div class="ci4">
+      <div class="cc">🔨<b>ビルド</b><span>そもそも動く形になるか</span></div>
+      <div class="cc">🧪<b>テスト</b><span>前に動いていた機能が壊れていないか</span></div>
+      <div class="cc">📏<b>静的解析</b><span>書き方のルール違反や、怪しいコードがないか</span></div>
+      <div class="cc">🦠<b>脆弱性スキャン</b><span>使っているライブラリに既知の穴がないか</span></div>
+    </div>
+    <div class="two2">
+      <div class="warn"><b>🤖 AIがコードを量産する時代</b><p>人間のレビューだけでは追いつかない。だから<b>機械が毎回、同じ基準で検品する</b>仕組みが前提になる。</p></div>
+      <div class="good"><b>✅ 落ちたら止まる、がポイント</b><p>不良品はベルトコンベアから降ろす。「テストが赤いけど急ぎだから」で流せない仕組みにしておくのが大事。</p></div>
+    </div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="CIで最低限やっておくべきチェックを、優先順に教えて">CIで最低限やっておくべきチェックを、優先順に教えて</button><button class="chip" type="button" data-q="依存ライブラリの脆弱性スキャンとは何か、ツールの例と一緒に教えて">依存ライブラリの脆弱性スキャンとは何か、ツールの例と一緒に教えて</button></div></div>
+  </section>
+
+  <!-- ===== 3 & 4 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">4</div><h2>箱は1回だけ作って、名札で付け替える</h2><span class="note">Ep1のコンテナ ＋ Ep2の鍵の置き場所</span></div>
+    <div class="vs">
+      <div class="panel">
+        <h3>荷造り：同じ箱を使い回す（地図の③）</h3>
+        <div class="mini2"><span class="box">📦 v1.2.3</span><span>→</span><span class="pill">開発</span><span class="pill">検証</span><span class="pill">本番</span></div>
+        <p class="desc">環境ごとに作り直すと、「検証で動いた箱」と「本番の箱」が<b>別物</b>になる。それでは検証した意味がない。</p>
+        <div class="tatoe" style="display:inline-block">検品済みの段ボールを、そのまま運ぶ</div>
+      </div>
+      <div class="mid">＋</div>
+      <div class="panel">
+        <h3>環境ごとの違いは外から入れる（地図の④）</h3>
+        <table class="cmp small">
+          <tr><th></th><th>開発</th><th>検証</th><th>本番</th></tr>
+          <tr><td>DBの接続先</td><td>開発DB</td><td>検証DB</td><td>本番DB</td></tr>
+          <tr><td>ログの細かさ</td><td>細かく</td><td>細かく</td><td>必要な分だけ</td></tr>
+          <tr><td>鍵・パスワード</td><td colspan="3">シークレット管理から読む（<b>箱の中にも、コードにも入れない</b>）</td></tr>
+        </table>
+        <div class="tatoe" style="display:inline-block;margin-top:8px">同じ制服に、配属先の名札だけ付け替える</div>
+      </div>
+    </div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="「一度作った成果物を全環境で使い回す（Build once, deploy many）」の考え方と、守らないと何が起きるか教えて">「一度作った成果物を全環境で使い回す（Build once, deploy many）」の考え方と、守らないと何が起きるか教えて</button><button class="chip" type="button" data-q="環境変数とシークレット管理の違いを教えて">環境変数とシークレット管理の違いを教えて</button></div></div>
+  </section>
+
+  <!-- ===== 6 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">5</div><h2>止めずに入れ替えて、ダメならすぐ戻す</h2><span class="note">Ep1のロードバランサが活躍</span></div>
+    <div class="rel">
+      <div class="house">
+        <div class="ic">🔁</div><div class="what">ローリング</div><p class="nm">窓口を1つずつ交代</p>
+        <div class="mini"><div class="srv new">新</div><div class="srv new">新</div><div class="srv">旧</div></div>
+        <p class="desc" style="margin-top:20px">サーバーを1台ずつ新しい箱に入れ替える。サービスは止まらない。途中で問題が出たら、そこで止める。</p>
+      </div>
+      <div class="house">
+        <div class="ic">🔵🟢</div><div class="what">ブルーグリーン</div><p class="nm">新しい窓口一式を用意して切り替え</p>
+        <div class="mini"><div class="srv" style="border-color:#4a7bd8">旧</div><span class="to">⇄</span><div class="srv new">新</div></div>
+        <p class="desc" style="margin-top:20px">新しい環境を丸ごと用意して、ロードバランサの向き先を一気に切り替える。<b>ダメなら向き先を戻すだけ</b>。</p>
+      </div>
+      <div class="house">
+        <div class="ic">⏪</div><div class="what">ロールバック</div><p class="nm">前の箱に戻す</p>
+        <div class="mini2" style="justify-content:center;margin:14px 0"><span class="box">📦 v1.2.3</span><span>⟵</span><span class="box bad">📦 v1.2.4</span></div>
+        <p class="desc">倉庫に前のバージョンの箱が残っているから、それを配り直すだけ。<b>「戻せる」が安心してリリースできる理由</b>。</p>
+      </div>
+    </div>
+    <p class="desc" style="margin-top:10px">💡 Ep1のスケーリング（混んだら台数を増やす）とは別の話。こっちは「台数はそのまま、中身を入れ替える」話。</p>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="ローリングデプロイ、ブルーグリーンデプロイ、カナリアリリースの違いを教えて">ローリングデプロイ、ブルーグリーンデプロイ、カナリアリリースの違いを教えて</button><button class="chip" type="button" data-q="DBの変更を伴うリリースで、ロールバックが難しくなる理由を教えて">DBの変更を伴うリリースで、ロールバックが難しくなる理由を教えて</button></div></div>
+  </section>
+
+  <!-- ===== 7 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">6</div><h2>配達係（パイプライン）の入館証</h2><span class="note">Ep2のOIDCが、ここで再登場</span></div>
+    <div class="intro" style="margin-bottom:14px">
+      <div class="panel">
+        <h3>そもそも、本番に箱を配っているのは誰？</h3>
+        <p class="desc">ここまでの旅で、本番に箱を置いたり、サーバーを入れ替えたりしていたのは<b>人ではなくパイプライン（機械）</b>。人はpushしただけ。</p>
+        <div class="tatoe" style="display:inline-block">パイプライン＝本番の建物に荷物を届ける配達係</div>
+      </div>
+      <div class="panel">
+        <h3>でも、クラウドの受付は記憶喪失（Ep2の再来）</h3>
+        <div class="amnesia">
+          <div class="bubble me">🤖 本番に新しい箱を置かせてください</div>
+          <div class="bubble rcv">☁️ どちら様？ 入館証は？</div>
+        </div>
+        <p class="desc">機械でも、本番に入るには<b>入館証（権限）</b>が要る。問題は、その入館証を<b>どう持たせるか</b>。</p>
+      </div>
+    </div>
+    <div class="vs">
+      <div class="panel ngp">
+        <h3>❌ 長期のアクセスキーをパイプラインに保存</h3>
+        <p class="desc">パイプラインは本番に配る権限を持っている。その鍵が漏れたら、<b>本番を丸ごと乗っ取られる</b>。しかも長期キーは、無効にするまでずっと使える。</p>
+        <div class="tatoe" style="display:inline-block">工場の壁に、本社の合鍵を貼っておく</div>
+      </div>
+      <div class="mid">→</div>
+      <div class="panel okp">
+        <h3>✅ OIDCで、実行のたびに一時的な権限をもらう</h3>
+        <p class="desc">パイプラインが「私は○○リポジトリのmainブランチのパイプラインです」と証明して、<b>その実行の間だけ使える権限</b>をクラウドからもらう。保存しておく鍵がそもそも無い。</p>
+        <div class="tatoe" style="display:inline-block">毎回、役所で当日限りの入館証をもらう</div>
+      </div>
+    </div>
+    <div class="punch">📌 Ep2のOIDCは「人のログイン」だった。実は<b>機械のログインにも同じ仕組みが使われている</b>。原則3「盗まれても被害を小さく」の実践そのもの。</div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="GitHub ActionsやGitLab CIからAWSにOIDCで接続する仕組みを教えて">GitHub ActionsやGitLab CIからAWSにOIDCで接続する仕組みを教えて</button><button class="chip" type="button" data-q="CI/CDパイプラインを狙った攻撃にはどんなものがあるか教えて">CI/CDパイプラインを狙った攻撃にはどんなものがあるか教えて</button></div></div>
+  </section>
+
+  <!-- ===== おまけ ===== -->
+  <section>
+    <div class="sec-title"><div class="no">7</div><h2>おまけ：インフラもコードで書く（IaC）</h2></div>
+    <div class="panel">
+      <p class="desc" style="margin:0">サーバーやネットワークの設定も、画面でポチポチせずにコード（Terraform / CloudFormation / CDK など）で書いて、同じパイプラインで流す。<b>「誰が何を変えたか分からない」がインフラでも起きなくなる</b>。手作業リリースの恐怖（1章）のインフラ版を防ぐ仕組み。</p>
+    </div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="IaCのメリットと、Terraform・CloudFormation・CDKの違いを教えて">IaCのメリットと、Terraform・CloudFormation・CDKの違いを教えて</button><button class="chip" type="button" data-q="手で変更したインフラとIaCのコードがずれる「ドリフト」とは何か教えて">手で変更したインフラとIaCのコードがずれる「ドリフト」とは何か教えて</button></div></div>
+  </section>
+
+  <!-- ===== やってみよう ===== -->
+  <section>
+    <div class="sec-title"><div class="no">✔</div><h2>確かめてみよう</h2></div>
+    <div class="try" style="grid-template-columns:1fr">
+      <div class="t soon">
+        <div class="w">🚧 準備中</div><div class="h">パイプラインを触ってみる</div>
+        <p>ハンズオンはリスキリング講座で実施予定。それまでは、このページの地図を眺めて「push → 検査 → 荷造り → 配る」の流れを頭に入れておけばOK。</p>
+      </div>
+    </div>
+  </section>
+
+<div class="next"><a href="ep2.html"><small>← 前へ Ep2</small>ログインしてから自分のデータだけが見えるまで</a><a class="r" href="index.html"><small>目次へ →</small>目次</a></div>
+  <footer>※構成はAWSを例にした一例です。ツールや配り方はシステムによって変わります。　｜　誰でも分かるインフラ入門 Ep3</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+<script>
+(function(){
+  var SUFFIX = "\n\n※私はアプリ開発者で、インフラは初心者です。たとえ話を使って説明して、最後に参考になる公式ドキュメントも教えてください。";
+  var t = document.getElementById('toast'), timer;
+  function show(msg){ t.textContent = msg; t.classList.add('on'); clearTimeout(timer); timer = setTimeout(function(){ t.classList.remove('on'); }, 2200); }
+  function fallback(text){
+    var ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly','');
+    ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+    var ok = false; try { ok = document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta); return ok;
+  }
+  document.querySelectorAll('.chip').forEach(function(b){
+    b.addEventListener('click', function(){
+      var text = b.getAttribute('data-q') + SUFFIX;
+      var done = function(){ b.classList.add('done'); show('コピーしました。いつものAIに貼り付けて聞いてみよう'); };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done, function(){ fallback(text) ? done() : show('コピーできませんでした。長押しで選択してね'); });
+      } else { fallback(text) ? done() : show('コピーできませんでした。長押しで選択してね'); }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>

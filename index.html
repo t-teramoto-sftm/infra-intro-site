@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>誰でも分かるインフラ入門</title>
+<style>
+  :root{
+    --bg:#fbf8f2; --ink:#1f2430; --sub:#5b6170; --line:#d9d3c7;
+    --coral:#ff6b5b; --teal:#14a39a; --yellow:#ffc93c; --navy:#2b3a67; --purple:#7a5af8;
+    --card:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
+    line-height:1.6}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 28px 60px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:28px}
+  .kicker{display:inline-block;background:var(--ink);color:#fff;font-weight:700;font-size:13px;
+    padding:4px 12px;border-radius:999px;letter-spacing:.05em}
+  h1{font-size:34px;line-height:1.3;margin:10px 0 0;font-weight:900}
+  h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--yellow) 62%)}
+  .lead{color:var(--sub);font-size:14px;max-width:360px;margin:0}
+
+  section{margin-top:34px}
+  .sec-title{display:flex;align-items:center;gap:12px;margin:0 0 14px}
+  .sec-title .no{flex:none;width:38px;height:38px;border-radius:12px;background:var(--ink);color:#fff;
+    display:grid;place-items:center;font-weight:900;font-size:15px}
+  .sec-title h2{margin:0;font-size:21px;font-weight:900}
+  .sec-title span.note{color:var(--sub);font-size:13px}
+
+  /* ---------- 旅の地図 ---------- */
+  .map{background:var(--card);border:2px solid var(--ink);border-radius:22px;padding:26px 24px 22px;position:relative}
+  .map-grid{display:grid;grid-template-columns:150px 118px 118px 1fr;gap:14px 10px;align-items:stretch}
+  .lanes{display:contents}
+  .lane.l0{grid-column:2 / 5;grid-row:1}
+  .lock{grid-column:2;grid-row:2 / 5}
+  .lock.gate{grid-column:3}
+  .lane.l1{grid-column:4;grid-row:2}
+  .js-note{grid-column:4;grid-row:3}
+  .lane.l2{grid-column:4;grid-row:4}
+  .browser{grid-column:1;grid-row:1 / 5;display:flex;flex-direction:column;justify-content:center}
+  .node{background:#fff;border:2px solid var(--ink);border-radius:16px;padding:12px 12px 10px;position:relative;
+    box-shadow:4px 4px 0 var(--ink);min-width:0}
+  .node .ic{font-size:26px;line-height:1}
+  .node .nm{font-weight:900;font-size:15px;margin-top:4px}
+  .aws{font-size:11px;font-weight:700;color:var(--sub)}
+  .node .nm .aws{display:block;line-height:1.3}
+  .node .rl{font-size:12px;color:var(--sub);line-height:1.45;margin-top:2px}
+  .tatoe{margin-top:8px;font-size:12px;font-weight:700;background:#fff6dc;border-radius:10px;padding:5px 8px;
+    border:1.5px dashed #e0a800;line-height:1.4}
+  .tatoe::before{content:"たとえ";display:inline-block;font-size:10px;background:var(--yellow);color:var(--ink);
+    border-radius:6px;padding:0 6px;margin-right:6px;vertical-align:1px}
+
+
+  .dns-row{display:flex;align-items:center;gap:10px}
+  .lane{border-radius:16px;padding:12px 12px 12px;position:relative}
+  .lane.l1{background:#e7f6f4;border:2px solid var(--teal)}
+  .lane.l2{background:#fff0ee;border:2px solid var(--coral)}
+  .lane.l0{background:#efeefe;border:2px solid var(--purple)}
+  .lane-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .step{font-weight:900;font-size:13px;color:#fff;border-radius:8px;padding:2px 9px}
+  .l0 .step{background:var(--purple)} .l1 .step{background:var(--teal)} .l2 .step{background:var(--coral)}
+  .lane-head b{font-size:15px}
+  .lane-head code{font-size:12px;background:#fff;border-radius:6px;padding:1px 7px;border:1px solid var(--line)}
+  .flow{display:flex;align-items:stretch;gap:0}
+  .flow .node{flex:1}
+  .arrow{flex:none;width:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-size:10px;color:var(--sub);font-weight:700;text-align:center;line-height:1.2}
+  .arrow::before{content:"";display:block;width:100%;height:14px;
+    background:no-repeat center/34px 14px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 14'%3E%3Cpath d='M0 7h28' stroke='%231f2430' stroke-width='2.4'/%3E%3Cpath d='M24 1l8 6-8 6' fill='none' stroke='%231f2430' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E")}
+  .arrow.wide{width:98px;white-space:nowrap}
+  .arrow.wide::before{background-size:60px 14px}
+  .ret{margin-top:10px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ret .back{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid var(--ink);
+    border-radius:999px;padding:2px 10px}
+  .ret .back::before{content:"⟵";font-weight:900}
+  .ret .why{color:var(--sub);font-weight:500}
+
+  .lock{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    background:repeating-linear-gradient(135deg,#fff 0 8px,#f3f0ff 8px 16px);border:2px dashed var(--purple);
+    border-radius:16px;padding:10px 6px}
+  .lock.gate{background:repeating-linear-gradient(135deg,#fff 0 8px,#ffeceb 8px 16px);border-color:var(--coral)}
+  .lock.gate .st{color:var(--coral)}
+  .lock .ic{font-size:28px}
+  .lock .st{font-size:11px;font-weight:900;color:var(--purple)}
+  .lock .nm{font-size:13px;font-weight:900;line-height:1.3;margin:2px 0 6px}
+  .lock .rl{font-size:10.5px;color:var(--sub);line-height:1.4}
+  .lock .tatoe{font-size:10.5px;padding:4px 5px}
+  .who{font-size:10.5px;text-align:left;background:#fff;border:1.5px solid var(--ink);border-radius:8px;padding:5px 6px;margin:6px 0;line-height:1.45;width:100%}
+  .who b{display:inline-block;font-size:10px;background:var(--ink);color:#fff;border-radius:4px;padding:0 4px;margin-right:3px}
+  .here{display:inline-block;margin-top:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed var(--purple);border-radius:8px;padding:2px 7px}
+  .lock .tatoe::before{display:block;width:max-content;margin:0 auto 3px}
+
+  .js-note{margin:-6px 0 -6px 22px;font-size:12px;font-weight:700;color:var(--coral);display:flex;align-items:center;gap:6px}
+  .js-note::before{content:"↓";font-size:16px}
+
+  /* ---------- 4. 返事 ---------- */
+  .two{display:grid;grid-template-columns:1.25fr 1fr;gap:18px}
+  .panel{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:18px}
+  .panel h3{margin:0 0 10px;font-size:16px}
+  .codes{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .code{border-radius:14px;padding:10px;border:2px solid var(--ink);text-align:center}
+  .code .n{font-size:26px;font-weight:900;line-height:1.1}
+  .code .t{font-size:11px;color:var(--sub);font-family:ui-monospace,Menlo,monospace}
+  .code .s{font-size:12.5px;font-weight:700;margin-top:6px;line-height:1.35}
+  .c2{background:#e3f6e8}.c4{background:#fff4d6}.c5{background:#ffe3df}.c503{background:#ffe3df}
+  .two2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+  .basic .v+.v{margin-top:4px}
+  .basics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .basic{border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;background:#fdfcf9}
+  .basic .k{font-size:11px;font-weight:900;color:var(--sub);letter-spacing:.06em}
+  .basic .v{font-size:13px;margin-top:2px}
+  .basic .v b{font-family:ui-monospace,Menlo,monospace;background:#fff;border:1px solid var(--line);border-radius:5px;padding:0 5px;margin-right:4px}
+
+  /* ---------- 5,6 可用性/スケール ---------- */
+  .vs{display:grid;grid-template-columns:1fr 40px 1fr;gap:0;align-items:stretch}
+  .vs .mid{display:grid;place-items:center;font-weight:900;font-size:13px;color:var(--sub)}
+  .mini{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0 10px;flex-wrap:wrap}
+  .srv{width:66px;height:62px;border:2px solid var(--ink);border-radius:12px;background:#fff;display:grid;place-items:center;
+    font-size:22px;position:relative}
+  .srv small{position:absolute;bottom:-18px;font-size:10px;color:var(--sub);white-space:nowrap}
+  .srv.dead{background:#eee;opacity:.75}
+  .srv.dead::after{content:"✕";position:absolute;inset:0;display:grid;place-items:center;font-size:44px;color:var(--coral);font-weight:900}
+  .srv.new{border-style:dashed;border-color:var(--teal);color:var(--teal)}
+  .alb{padding:6px 10px;border:2px solid var(--ink);border-radius:10px;background:var(--yellow);font-weight:900;font-size:12px;text-align:center;line-height:1.3}
+  .people{font-size:20px;letter-spacing:-3px}
+  .mini .to{font-weight:900}
+  .keyline{font-size:14px;font-weight:900;margin:0}
+  .desc{font-size:12.5px;color:var(--sub);margin:4px 0 0}
+
+  /* ---------- 7. コスト ---------- */
+  .cost{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .cost2{display:grid;grid-template-columns:1.4fr 1fr;align-items:start;gap:14px;margin-top:14px}
+  .box{background:#eaf0ff;border:2px solid var(--navy);border-radius:18px;padding:16px}
+  .box h3{margin:0 0 6px;font-size:15px}
+  .box p{margin:4px 0;font-size:12.5px}
+  .pack{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 4px;font-size:12px;font-weight:700}
+  .pack span{background:#fff;border:1.5px solid var(--navy);border-radius:10px;padding:4px 9px}
+  .house{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:16px;box-shadow:4px 4px 0 var(--ink)}
+  .house .ic{font-size:34px;line-height:1}
+  .house .what{font-size:12px;font-weight:900;color:var(--sub);margin-top:6px}
+  .house .nm{font-size:19px;font-weight:900;margin:0 0 6px}
+  .house ul{margin:0;padding-left:1.1em;font-size:12.5px}
+  .house li{margin:2px 0}
+  .house li.good::marker{content:"◎ ";color:var(--teal)}
+  .house li.bad::marker{content:"△ ";color:var(--coral)}
+  .chart{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:14px 14px 10px}
+  .chart h3{margin:0;font-size:14px}
+  .chart svg{display:block;max-height:190px;margin:0 auto}
+  .chart p{margin:4px 0 0;font-size:11.5px;color:var(--sub)}
+  .punch{margin-top:14px;background:var(--ink);color:#fff;border-radius:16px;padding:14px 18px;font-weight:700;font-size:14.5px}
+  .punch b{color:var(--yellow)}
+
+  /* ---------- 確かめよう ---------- */
+  .try{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .try .t{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:14px}
+  .try .t .w{font-size:11px;font-weight:900;color:var(--sub)}
+  .try .t .h{font-weight:900;font-size:14.5px;margin:2px 0 6px}
+  .try code{display:block;background:var(--ink);color:#e9ffd9;border-radius:8px;padding:7px 10px;font-size:12px;margin:6px 0;font-family:ui-monospace,Menlo,monospace}
+  .try p{margin:0;font-size:12.5px;color:var(--sub)}
+
+  footer{margin-top:34px;font-size:11.5px;color:var(--sub);border-top:1px solid var(--line);padding-top:12px}
+
+  @media (max-width:900px){
+    .map-grid{grid-template-columns:1fr;gap:14px}
+    .lanes{display:contents}
+    .browser{order:1} .lane.l0{order:2} .lock{order:3} .lock.gate{order:4} .lane.l1{order:5} .js-note{order:6;margin:0 0 0 22px} .lane.l2{order:7}
+    .browser,.lock,.lock.gate,.lane.l0,.lane.l1,.lane.l2,.js-note{grid-row:auto;grid-column:auto}
+    .flow{flex-direction:column}
+    .arrow,.arrow.wide{width:100%;height:auto;flex-direction:row;gap:8px;padding:6px 0;white-space:nowrap}
+    .arrow::before,.arrow.wide::before{width:14px;height:30px;background-size:14px 30px;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 30'%3E%3Cpath d='M7 0v24' stroke='%231f2430' stroke-width='2.4'/%3E%3Cpath d='M1 20l6 8 6-8' fill='none' stroke='%231f2430' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E")}
+    .two,.two2,.vs,.cost,.cost2,.try{grid-template-columns:1fr}
+    .vs .mid{padding:8px 0}
+    .codes{grid-template-columns:repeat(2,1fr)}
+  }
+  @media print{ body{background:#fff} .wrap{padding:10px} section{break-inside:avoid} }
+
+  .eps{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:10px}
+  .ep{display:block;text-decoration:none;color:var(--ink);background:#fff;border:2px solid var(--ink);border-radius:20px;padding:20px;box-shadow:5px 5px 0 var(--ink)}
+  .ep .n{display:inline-block;color:#fff;font-weight:900;font-size:12px;border-radius:8px;padding:2px 10px}
+  .ep .t{font-size:19px;font-weight:900;margin:10px 0 6px;line-height:1.4}
+  .ep p{font-size:13px;color:var(--sub);margin:0 0 10px}
+  .ep .tags{display:flex;flex-wrap:wrap;gap:6px}
+  .ep .tags span{font-size:11px;font-weight:700;border:1.5px solid var(--line);border-radius:999px;padding:1px 9px;background:#fdfcf9}
+  .ep .go{display:block;margin-top:14px;font-weight:900;font-size:13px}
+  .learn{margin-top:34px}
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .st1{background:#fff;border:2px solid var(--ink);border-radius:18px;padding:16px;box-shadow:4px 4px 0 var(--ink);position:relative}
+  .st1 .sn{width:30px;height:30px;border-radius:10px;background:var(--yellow);font-weight:900;display:grid;place-items:center;margin-bottom:8px}
+  .st1 b{font-size:15.5px}
+  .st1 p{font-size:13px;color:var(--sub);margin:6px 0 0}
+  .mini-chip{display:inline-block;background:#eaf0ff;border:1.5px solid var(--navy);border-radius:8px;padding:0 6px;font-size:12px;color:var(--ink);font-weight:700}
+  .caution{margin-top:14px;background:#fff4d6;border:2px solid #e0a800;border-radius:14px;padding:12px 16px;font-size:13.5px}
+  .how{margin-top:30px;display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .how div{background:#fff;border:2px solid var(--line);border-radius:16px;padding:14px;font-size:13px}
+  .how b{display:block;font-size:14.5px;margin-bottom:4px}
+  @media (max-width:900px){ .eps,.how,.steps{grid-template-columns:1fr} }
+
+  .nav{position:sticky;top:0;z-index:10;background:rgba(251,248,242,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+  .nav .in{max-width:1180px;margin:0 auto;padding:8px 28px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:700}
+  .nav a{color:var(--ink);text-decoration:none;border:1.5px solid var(--ink);border-radius:999px;padding:3px 12px;background:#fff}
+  .nav a.cur{background:var(--ink);color:#fff}
+  .nav .home{margin-right:auto;border:0;background:none;padding:3px 0}
+  .next{display:flex;justify-content:space-between;gap:10px;margin-top:30px;flex-wrap:wrap}
+  .next a{flex:1;min-width:200px;text-decoration:none;color:var(--ink);background:#fff;border:2px solid var(--ink);border-radius:16px;padding:12px 16px;box-shadow:4px 4px 0 var(--ink);font-weight:900}
+  .next a small{display:block;font-size:11px;color:var(--sub);font-weight:700}
+  .next a.r{text-align:right}
+  @media (max-width:600px){ .sec-title{flex-wrap:wrap;row-gap:4px} .sec-title h2{font-size:19px} .sec-title span.note{flex-basis:100%;padding-left:50px} .wrap{padding:24px 16px 40px} h1{font-size:26px} .nav .in{padding:8px 16px} .map{padding:16px 12px} }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header>
+    <div>
+      <span class="kicker">AI時代のエンジニアのための</span>
+      <h1>誰でも分かる<br><em>インフラ入門</em></h1>
+    </div>
+    <p class="lead">AIはそれっぽいコードも構成も出してくれる。<br>でも「それが本当に大丈夫か」を判断するのは人間。<br>そのための地図を、3つの旅で。</p>
+  </header>
+  <div class="eps">
+    <a class="ep" href="ep1.html"><span class="n" style="background:var(--teal)">Ep1</span><div class="t">URLを叩いてから<br>画面が出るまで</div><p>クライアントとサーバー、DNS、CDN、可用性とスケール、サーバーの住まい方とお金の話。</p><div class="tags"><span>HTTP</span><span>DNS</span><span>CDN</span><span>スケール</span><span>コスト</span></div><span class="go">読む →</span></a>
+    <a class="ep" href="ep2.html"><span class="n" style="background:var(--coral)">Ep2</span><div class="t">ログインしてから<br>自分のデータだけが見えるまで</div><p>入館証（トークン）をどう扱うか。認証と認可、JWT、APIキー、保存場所、やっちゃダメ集。</p><div class="tags"><span>認証・認可</span><span>OIDC</span><span>JWT</span><span>Cookie</span></div><span class="go">読む →</span></a>
+    <a class="ep" href="ep3.html"><span class="n" style="background:var(--purple)">Ep3</span><div class="t">コードをpushしてから<br>本番に反映されるまで</div><p>CI/CDの本質は「毎回同じ手順で、安全に、戻せる」。検査、荷造り、配り方、パイプラインの鍵。</p><div class="tags"><span>CI/CD</span><span>コンテナ</span><span>リリース</span><span>OIDC</span></div><span class="go">読む →</span></a>
+  </div>
+  <section class="learn">
+    <div class="sec-title"><div class="no">？</div><h2>このサイトの使い方</h2><span class="note">全部読まなくていい。全部覚えなくていい。</span></div>
+    <div class="steps">
+      <div class="st1"><div class="sn">1</div><b>地図を眺める（5分）</b><p>1日1章でOK。分からない言葉があっても気にせず、まずは「全体の流れ」だけつかむ。</p></div>
+      <div class="st1"><div class="sn">2</div><b>気になったら、AIに聞く（5分）</b><p>各章の最後にある <span class="mini-chip">💬 質問ボタン</span> をタップすると、質問文がコピーされる。いつものAIに貼るだけ。</p></div>
+      <div class="st1"><div class="sn">3</div><b>余裕があれば、確かめる（10分）</b><p>Ep1・Ep2の最後の「確かめてみよう」を、自分のブラウザで試す。</p></div>
+    </div>
+    <div class="caution">⚠️ <b>AIの答えは、1つだけ公式ドキュメントで裏を取ろう。</b>「AIの答えが本当に正しいか判断できるようになる」のが、この講座の目的そのものだから。</div>
+  </section>
+  <footer>※AWSを例にした入門資料です。構成は一例で、システムによって形は変わります。</footer>
+</div>
+</body>
+</html>

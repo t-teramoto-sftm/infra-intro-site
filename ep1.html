@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ep1 URLを叩いてから画面が出るまで｜誰でも分かるインフラ入門</title>
+<style>
+  :root{
+    --bg:#fbf8f2; --ink:#1f2430; --sub:#5b6170; --line:#d9d3c7;
+    --coral:#ff6b5b; --teal:#14a39a; --yellow:#ffc93c; --navy:#2b3a67; --purple:#7a5af8;
+    --card:#ffffff;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:"Hiragino Sans","Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;
+    line-height:1.6}
+  .wrap{max-width:1180px;margin:0 auto;padding:40px 28px 60px}
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:28px}
+  .kicker{display:inline-block;background:var(--ink);color:#fff;font-weight:700;font-size:13px;
+    padding:4px 12px;border-radius:999px;letter-spacing:.05em}
+  h1{font-size:34px;line-height:1.3;margin:10px 0 0;font-weight:900}
+  h1 em{font-style:normal;background:linear-gradient(transparent 62%,var(--yellow) 62%)}
+  .lead{color:var(--sub);font-size:14px;max-width:360px;margin:0}
+
+  section{margin-top:34px}
+  .sec-title{display:flex;align-items:center;gap:12px;margin:0 0 14px}
+  .sec-title .no{flex:none;width:38px;height:38px;border-radius:12px;background:var(--ink);color:#fff;
+    display:grid;place-items:center;font-weight:900;font-size:15px}
+  .sec-title h2{margin:0;font-size:21px;font-weight:900}
+  .sec-title span.note{color:var(--sub);font-size:13px}
+
+  /* ---------- 旅の地図 ---------- */
+  .map{background:var(--card);border:2px solid var(--ink);border-radius:22px;padding:26px 24px 22px;position:relative}
+  .map-grid{display:grid;grid-template-columns:150px 118px 118px 1fr;gap:14px 10px;align-items:stretch}
+  .lanes{display:contents}
+  .lane.l0{grid-column:2 / 5;grid-row:1}
+  .lock{grid-column:2;grid-row:2 / 5}
+  .lock.gate{grid-column:3}
+  .lane.l1{grid-column:4;grid-row:2}
+  .js-note{grid-column:4;grid-row:3}
+  .lane.l2{grid-column:4;grid-row:4}
+  .browser{grid-column:1;grid-row:1 / 5;display:flex;flex-direction:column;justify-content:center}
+  .node{background:#fff;border:2px solid var(--ink);border-radius:16px;padding:12px 12px 10px;position:relative;
+    box-shadow:4px 4px 0 var(--ink);min-width:0}
+  .node .ic{font-size:26px;line-height:1}
+  .node .nm{font-weight:900;font-size:15px;margin-top:4px}
+  .aws{font-size:11px;font-weight:700;color:var(--sub)}
+  .node .nm .aws{display:block;line-height:1.3}
+  .node .rl{font-size:12px;color:var(--sub);line-height:1.45;margin-top:2px}
+  .tatoe{margin-top:8px;font-size:12px;font-weight:700;background:#fff6dc;border-radius:10px;padding:5px 8px;
+    border:1.5px dashed #e0a800;line-height:1.4}
+  .tatoe::before{content:"たとえ";display:inline-block;font-size:10px;background:var(--yellow);color:var(--ink);
+    border-radius:6px;padding:0 6px;margin-right:6px;vertical-align:1px}
+
+
+  .dns-row{display:flex;align-items:center;gap:10px}
+  .lane{border-radius:16px;padding:12px 12px 12px;position:relative}
+  .lane.l1{background:#e7f6f4;border:2px solid var(--teal)}
+  .lane.l2{background:#fff0ee;border:2px solid var(--coral)}
+  .lane.l0{background:#efeefe;border:2px solid var(--purple)}
+  .lane-head{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+  .step{font-weight:900;font-size:13px;color:#fff;border-radius:8px;padding:2px 9px}
+  .l0 .step{background:var(--purple)} .l1 .step{background:var(--teal)} .l2 .step{background:var(--coral)}
+  .lane-head b{font-size:15px}
+  .lane-head code{font-size:12px;background:#fff;border-radius:6px;padding:1px 7px;border:1px solid var(--line)}
+  .flow{display:flex;align-items:stretch;gap:0}
+  .flow .node{flex:1}
+  .arrow{flex:none;width:44px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    font-size:10px;color:var(--sub);font-weight:700;text-align:center;line-height:1.2}
+  .arrow::before{content:"";display:block;width:100%;height:14px;
+    background:no-repeat center/34px 14px url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 14'%3E%3Cpath d='M0 7h28' stroke='%231f2430' stroke-width='2.4'/%3E%3Cpath d='M24 1l8 6-8 6' fill='none' stroke='%231f2430' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E")}
+  .arrow.wide{width:98px;white-space:nowrap}
+  .arrow.wide::before{background-size:60px 14px}
+  .ret{margin-top:10px;font-size:12px;font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .ret .back{display:inline-flex;align-items:center;gap:6px;background:#fff;border:1.5px solid var(--ink);
+    border-radius:999px;padding:2px 10px}
+  .ret .back::before{content:"⟵";font-weight:900}
+  .ret .why{color:var(--sub);font-weight:500}
+
+  .lock{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+    background:repeating-linear-gradient(135deg,#fff 0 8px,#f3f0ff 8px 16px);border:2px dashed var(--purple);
+    border-radius:16px;padding:10px 6px}
+  .lock.gate{background:repeating-linear-gradient(135deg,#fff 0 8px,#ffeceb 8px 16px);border-color:var(--coral)}
+  .lock.gate .st{color:var(--coral)}
+  .lock .ic{font-size:28px}
+  .lock .st{font-size:11px;font-weight:900;color:var(--purple)}
+  .lock .nm{font-size:13px;font-weight:900;line-height:1.3;margin:2px 0 6px}
+  .lock .rl{font-size:10.5px;color:var(--sub);line-height:1.4}
+  .lock .tatoe{font-size:10.5px;padding:4px 5px}
+  .who{font-size:10.5px;text-align:left;background:#fff;border:1.5px solid var(--ink);border-radius:8px;padding:5px 6px;margin:6px 0;line-height:1.45;width:100%}
+  .who b{display:inline-block;font-size:10px;background:var(--ink);color:#fff;border-radius:4px;padding:0 4px;margin-right:3px}
+  .here{display:inline-block;margin-top:6px;font-size:11px;font-weight:700;background:#fff;border:1.5px dashed var(--purple);border-radius:8px;padding:2px 7px}
+  .lock .tatoe::before{display:block;width:max-content;margin:0 auto 3px}
+
+  .js-note{margin:-6px 0 -6px 22px;font-size:12px;font-weight:700;color:var(--coral);display:flex;align-items:center;gap:6px}
+  .js-note::before{content:"↓";font-size:16px}
+
+  /* ---------- 4. 返事 ---------- */
+  .two{display:grid;grid-template-columns:1.25fr 1fr;gap:18px}
+  .panel{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:18px}
+  .panel h3{margin:0 0 10px;font-size:16px}
+  .codes{display:grid;grid-template-columns:repeat(6,1fr);gap:10px}
+  .code{border-radius:14px;padding:10px;border:2px solid var(--ink);text-align:center}
+  .code .n{font-size:26px;font-weight:900;line-height:1.1}
+  .code .t{font-size:11px;color:var(--sub);font-family:ui-monospace,Menlo,monospace}
+  .code .s{font-size:12.5px;font-weight:700;margin-top:6px;line-height:1.35}
+  .c2{background:#e3f6e8}.c4{background:#fff4d6}.c5{background:#ffe3df}.c503{background:#ffe3df}
+  .two2{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:18px}
+  .basic .v+.v{margin-top:4px}
+  .basics{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .basic{border:1.5px solid var(--line);border-radius:12px;padding:10px 12px;background:#fdfcf9}
+  .basic .k{font-size:11px;font-weight:900;color:var(--sub);letter-spacing:.06em}
+  .basic .v{font-size:13px;margin-top:2px}
+  .basic .v b{font-family:ui-monospace,Menlo,monospace;background:#fff;border:1px solid var(--line);border-radius:5px;padding:0 5px;margin-right:4px}
+
+  /* ---------- 5,6 可用性/スケール ---------- */
+  .vs{display:grid;grid-template-columns:1fr 40px 1fr;gap:0;align-items:stretch}
+  .vs .mid{display:grid;place-items:center;font-weight:900;font-size:13px;color:var(--sub)}
+  .mini{display:flex;align-items:center;justify-content:center;gap:10px;margin:12px 0 10px;flex-wrap:wrap}
+  .srv{width:66px;height:62px;border:2px solid var(--ink);border-radius:12px;background:#fff;display:grid;place-items:center;
+    font-size:22px;position:relative}
+  .srv small{position:absolute;bottom:-18px;font-size:10px;color:var(--sub);white-space:nowrap}
+  .srv.dead{background:#eee;opacity:.75}
+  .srv.dead::after{content:"✕";position:absolute;inset:0;display:grid;place-items:center;font-size:44px;color:var(--coral);font-weight:900}
+  .srv.new{border-style:dashed;border-color:var(--teal);color:var(--teal)}
+  .alb{padding:6px 10px;border:2px solid var(--ink);border-radius:10px;background:var(--yellow);font-weight:900;font-size:12px;text-align:center;line-height:1.3}
+  .people{font-size:20px;letter-spacing:-3px}
+  .mini .to{font-weight:900}
+  .keyline{font-size:14px;font-weight:900;margin:0}
+  .desc{font-size:12.5px;color:var(--sub);margin:4px 0 0}
+
+  /* ---------- 7. コスト ---------- */
+  .cost{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+  .cost2{display:grid;grid-template-columns:1.4fr 1fr;align-items:start;gap:14px;margin-top:14px}
+  .box{background:#eaf0ff;border:2px solid var(--navy);border-radius:18px;padding:16px}
+  .box h3{margin:0 0 6px;font-size:15px}
+  .box p{margin:4px 0;font-size:12.5px}
+  .pack{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0 4px;font-size:12px;font-weight:700}
+  .pack span{background:#fff;border:1.5px solid var(--navy);border-radius:10px;padding:4px 9px}
+  .house{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:16px;box-shadow:4px 4px 0 var(--ink)}
+  .house .ic{font-size:34px;line-height:1}
+  .house .what{font-size:12px;font-weight:900;color:var(--sub);margin-top:6px}
+  .house .nm{font-size:19px;font-weight:900;margin:0 0 6px}
+  .house ul{margin:0;padding-left:1.1em;font-size:12.5px}
+  .house li{margin:2px 0}
+  .house li.good::marker{content:"◎ ";color:var(--teal)}
+  .house li.bad::marker{content:"△ ";color:var(--coral)}
+  .chart{background:var(--card);border:2px solid var(--ink);border-radius:18px;padding:14px 14px 10px}
+  .chart h3{margin:0;font-size:14px}
+  .chart svg{display:block;max-height:190px;margin:0 auto}
+  .chart p{margin:4px 0 0;font-size:11.5px;color:var(--sub)}
+  .punch{margin-top:14px;background:var(--ink);color:#fff;border-radius:16px;padding:14px 18px;font-weight:700;font-size:14.5px}
+  .punch b{color:var(--yellow)}
+
+  /* ---------- 確かめよう ---------- */
+  .try{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .try .t{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:14px}
+  .try .t .w{font-size:11px;font-weight:900;color:var(--sub)}
+  .try .t .h{font-weight:900;font-size:14.5px;margin:2px 0 6px}
+  .try code{display:block;background:var(--ink);color:#e9ffd9;border-radius:8px;padding:7px 10px;font-size:12px;margin:6px 0;font-family:ui-monospace,Menlo,monospace}
+  .try p{margin:0;font-size:12.5px;color:var(--sub)}
+
+  footer{margin-top:34px;font-size:11.5px;color:var(--sub);border-top:1px solid var(--line);padding-top:12px}
+
+  @media (max-width:900px){
+    .map-grid{grid-template-columns:1fr;gap:14px}
+    .lanes{display:contents}
+    .browser{order:1} .lane.l0{order:2} .lock{order:3} .lock.gate{order:4} .lane.l1{order:5} .js-note{order:6;margin:0 0 0 22px} .lane.l2{order:7}
+    .browser,.lock,.lock.gate,.lane.l0,.lane.l1,.lane.l2,.js-note{grid-row:auto;grid-column:auto}
+    .flow{flex-direction:column}
+    .arrow,.arrow.wide{width:100%;height:auto;flex-direction:row;gap:8px;padding:6px 0;white-space:nowrap}
+    .arrow::before,.arrow.wide::before{width:14px;height:30px;background-size:14px 30px;
+      background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 14 30'%3E%3Cpath d='M7 0v24' stroke='%231f2430' stroke-width='2.4'/%3E%3Cpath d='M1 20l6 8 6-8' fill='none' stroke='%231f2430' stroke-width='2.4' stroke-linejoin='round'/%3E%3C/svg%3E")}
+    .two,.two2,.vs,.cost,.cost2,.try{grid-template-columns:1fr}
+    .vs .mid{padding:8px 0}
+    .codes{grid-template-columns:repeat(2,1fr)}
+  }
+  @media print{ body{background:#fff} .wrap{padding:10px} section{break-inside:avoid} }
+
+  .dig{margin-top:14px;background:#fff;border:2px dashed var(--navy);border-radius:16px;padding:12px 14px}
+  .dig .dh{font-size:13px;font-weight:900;color:var(--navy);display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+  .dig .dh small{font-size:11px;font-weight:700;color:var(--sub)}
+  .chips{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}
+  .chip{font:inherit;font-size:12.5px;text-align:left;line-height:1.45;cursor:pointer;background:#eaf0ff;color:var(--ink);
+    border:1.5px solid var(--navy);border-radius:12px;padding:6px 10px 6px 30px;position:relative}
+  .chip::before{content:"💬";position:absolute;left:9px;top:6px;font-size:13px}
+  .chip:hover{background:#dce6ff}
+  .chip.done{background:#e3f6e8;border-color:var(--teal)}
+  .chip.done::before{content:"✅"}
+  .toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%) translateY(20px);opacity:0;pointer-events:none;
+    background:var(--ink);color:#fff;font-size:13px;font-weight:700;border-radius:999px;padding:10px 18px;transition:.25s;z-index:20;max-width:90vw;text-align:center}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+
+  .nav{position:sticky;top:0;z-index:10;background:rgba(251,248,242,.94);backdrop-filter:blur(6px);border-bottom:1px solid var(--line)}
+  .nav .in{max-width:1180px;margin:0 auto;padding:8px 28px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:13px;font-weight:700}
+  .nav a{color:var(--ink);text-decoration:none;border:1.5px solid var(--ink);border-radius:999px;padding:3px 12px;background:#fff}
+  .nav a.cur{background:var(--ink);color:#fff}
+  .nav .home{margin-right:auto;border:0;background:none;padding:3px 0}
+  .next{display:flex;justify-content:space-between;gap:10px;margin-top:30px;flex-wrap:wrap}
+  .next a{flex:1;min-width:200px;text-decoration:none;color:var(--ink);background:#fff;border:2px solid var(--ink);border-radius:16px;padding:12px 16px;box-shadow:4px 4px 0 var(--ink);font-weight:900}
+  .next a small{display:block;font-size:11px;color:var(--sub);font-weight:700}
+  .next a.r{text-align:right}
+  @media (max-width:600px){ .sec-title{flex-wrap:wrap;row-gap:4px} .sec-title h2{font-size:19px} .sec-title span.note{flex-basis:100%;padding-left:50px} .wrap{padding:24px 16px 40px} h1{font-size:26px} .nav .in{padding:8px 16px} .map{padding:16px 12px} }
+</style>
+</head>
+<body>
+<nav class="nav"><div class="in"><a class="home" href="index.html">← 誰でも分かるインフラ入門</a><a href="ep1.html" class="cur">Ep1</a><a href="ep2.html">Ep2</a><a href="ep3.html">Ep3</a></div></nav>
+
+<div class="wrap">
+
+  <header>
+    <div>
+      <span class="kicker">誰でも分かるインフラ入門 Ep1</span>
+      <h1>URLを叩いてから<br><em>画面が出るまで</em></h1>
+    </div>
+    <p class="lead">やっていることは「リクエストを送って、レスポンスが返ってくる」だけ。<br>その途中で、誰が何を担当しているかを一枚で見てみよう。</p>
+  </header>
+
+  <!-- ===== 旅の地図 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">1</div><h2>旅の地図</h2><span class="note">手紙を出して、返事が来るまで</span></div>
+    <div class="map">
+      <div class="map-grid">
+
+        <!-- ブラウザ -->
+        <div class="browser">
+          <div class="node">
+            <div class="ic">🧑‍💻</div>
+            <div class="nm">ブラウザ（あなた）</div>
+            <div class="rl">URLを叩く＝リクエストを送る人。<b>クライアント</b>と呼ぶ</div>
+            <div class="tatoe">手紙を出す人</div>
+          </div>
+        </div>
+
+        <!-- 身分証チェック -->
+        <div class="lock">
+                    <div class="ic">🔒</div>
+          <div class="nm">サーバーの<br>身分証チェック</div>
+          <div class="who"><b>見せる</b>CDN・APIゲートウェイ（証明書を持っている）<br><b>確かめる</b>ブラウザ</div>
+          <div class="rl">HTTPS（443番）。リクエストを送る前に、ブラウザがサーバーの証明書を見て「なりすましじゃないか」を確認し、通信を暗号化する</div>
+          <div class="tatoe">お店に貼ってある営業許可証（役所＝認証局が発行）</div>
+        </div>
+
+        <!-- 門番 -->
+        <div class="lock gate">
+                    <div class="ic">🛡️</div>
+          <div class="nm">入口の門番<br><span class="aws">（WAF）</span></div>
+          <div class="who"><b>どこで</b>CDN・APIゲートウェイに取り付けて、受付の手前で動く</div>
+          <div class="rl">怪しいリクエスト（SQLインジェクション、異常な大量アクセスなど）を入口ではじく。はじかれると<b>403</b>が返る<br><br>※アプリ自体のバグまでは守れない</div>
+          <div class="tatoe">ビルの警備員の手荷物検査</div>
+        </div>
+
+        <!-- レーン -->
+        <div class="lanes">
+          <!-- 1. DNS -->
+          <div class="lane l0">
+            <div class="lane-head"><span class="step">①</span><b>住所を緯度経度に変える</b><code>example.com → 203.0.113.10</code></div>
+            <div class="dns-row">
+              <div class="node" style="flex:1">
+                <div class="ic">📖</div>
+                <div class="nm">DNS<span class="aws">（Route 53）</span></div>
+                <div class="rl">コンピュータは「example.com」という住所だけでは場所が分からない。だから機械が読める番号（IPアドレス）に変換する</div>
+                <div class="tatoe">住所（人が読む）を緯度経度（機械が読む）に変えてくれる地図アプリ</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. 画面 -->
+          <div class="lane l1">
+            <div class="lane-head"><span class="step">②</span><b>画面をもらう</b><code>GET /index.html</code></div>
+            <div class="flow">
+              <div class="node">
+                <div class="ic">🏪</div>
+                <div class="nm">CDN<span class="aws">（CloudFront）</span></div>
+                <div class="rl">世界中に置かれた中継サーバー。一度取ったファイルを手元にキャッシュしておくから速い</div>
+                <div class="tatoe">駅前のコンビニ（本社まで行かなくていい）</div>
+                <div class="here">🔒 証明書を見せる ／ 🛡️ 門番が立つ</div>
+              </div>
+              <div class="arrow wide">手元になければ</div>
+              <div class="node">
+                <div class="ic">📦</div>
+                <div class="nm">ファイル置き場<span class="aws">（S3）</span></div>
+                <div class="rl">画面のファイル（HTML / JS / 画像）の置き場</div>
+                <div class="tatoe">本社の倉庫</div>
+              </div>
+            </div>
+            <div class="ret"><span class="back">200 OK ＋ HTML / JS</span><span class="why">ブラウザに画面の「枠」が出る</span></div>
+          </div>
+
+          <div class="js-note">届いたJSが動き出して、中身のデータを取りに行く（リクエストは実は2回！）</div>
+
+          <!-- 3. データ -->
+          <div class="lane l2">
+            <div class="lane-head"><span class="step">③</span><b>データを取りに行く</b><code>GET /api/orders</code></div>
+            <div class="flow">
+              <div class="node">
+                <div class="ic">🛎️</div>
+                <div class="nm">APIゲートウェイ<span class="aws">（API Gateway）</span></div>
+                <div class="rl">APIの入口。認証チェック、回数制限、振り分けをしてくれる</div>
+                <div class="tatoe">受付窓口</div>
+                <div class="here">🔒 証明書を見せる ／ 🛡️ 門番が立つ</div>
+              </div>
+              <div class="arrow"></div>
+              <div class="node">
+                <div class="ic">⚙️</div>
+                <div class="nm">アプリサーバ<span class="aws">（EC2 / Lambda など）</span></div>
+                <div class="rl">業務ロジックを実行する本体</div>
+                <div class="tatoe">担当者</div>
+              </div>
+              <div class="arrow"></div>
+              <div class="node">
+                <div class="ic">🗄️</div>
+                <div class="nm">データベース<span class="aws">（RDS / Aurora など）</span></div>
+                <div class="rl">データを保存・検索する</div>
+                <div class="tatoe">書類の倉庫</div>
+              </div>
+            </div>
+            <div class="ret"><span class="back">200 OK ＋ JSON（データ）</span><span class="why">画面の枠にデータが入って、ようやく完成</span></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="ブラウザでURLを開いてから画面が表示されるまでに起きていることを、順番に説明して">ブラウザでURLを開いてから画面が表示されるまでに起きていることを、順番に説明して</button><button class="chip" type="button" data-q="CDNのキャッシュが原因で起きがちなトラブルを3つ教えて">CDNのキャッシュが原因で起きがちなトラブルを3つ教えて</button><button class="chip" type="button" data-q="DNSの設定を間違えると何が起きる？よくある失敗例を教えて">DNSの設定を間違えると何が起きる？よくある失敗例を教えて</button></div></div>
+  </section>
+
+  <!-- ===== 4. 返事 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">2</div><h2>返事が届く</h2><span class="note">決まりごとは、とりあえずこの3点セットでOK</span></div>
+    <div class="panel">
+      <h3>① ステータスコード：返事の「ひとこと」</h3>
+      <div class="codes">
+        <div class="code c2"><div class="n">200</div><div class="t">OK</div><div class="s">「はい、どうぞ」</div></div>
+        <div class="code c4"><div class="n">401</div><div class="t">Unauthorized</div><div class="s">「あなた誰？」</div></div>
+        <div class="code c4"><div class="n">403</div><div class="t">Forbidden</div><div class="s">「あなたは通せません」</div></div>
+        <div class="code c4"><div class="n">404</div><div class="t">Not Found</div><div class="s">「そんなものありません」</div></div>
+        <div class="code c5"><div class="n">500</div><div class="t">Internal Server Error</div><div class="s">「担当者が倒れました」</div></div>
+        <div class="code c503"><div class="n">503</div><div class="t">Service Unavailable</div><div class="s">「混みすぎて受付停止中」</div></div>
+      </div>
+      <p class="desc" style="margin-top:10px">💡 4xxは<b>頼む側</b>の問題、5xxは<b>サーバー側</b>の問題。障害のとき、まずここを見る。</p>
+    </div>
+    <div class="two2">
+      <div class="panel">
+        <h3>② メソッド：お願いの種類</h3>
+        <div class="basic"><div class="v"><b>GET</b>「ください」（データを取る）</div><div class="v"><b>POST</b>「これ受け取って」（データを送る・登録する）</div></div>
+        <p class="desc" style="margin-top:10px">ほかにも PUT（更新）や DELETE（削除）があるけど、まずはこの2つでOK。</p>
+      </div>
+      <div class="panel">
+        <h3>③ ポート：届け先の窓口番号</h3>
+        <div class="basic"><div class="v"><b>80</b>HTTP（はがき）</div><div class="v"><b>443</b>HTTPS（封書）</div></div>
+        <p class="desc" style="margin-top:10px">はがきは途中で誰でも読める。今どきは<b>封書（HTTPS）が当たり前</b>。</p>
+      </div>
+    </div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="HTTPステータスコードの4xxと5xxの違いを、障害対応の初動の観点で教えて">HTTPステータスコードの4xxと5xxの違いを、障害対応の初動の観点で教えて</button><button class="chip" type="button" data-q="GETとPOSTの違いと、使い分けを間違えると何が困るか教えて">GETとPOSTの違いと、使い分けを間違えると何が困るか教えて</button><button class="chip" type="button" data-q="HTTPとHTTPSの違いを、通信の途中で何が見えるかという観点で教えて">HTTPとHTTPSの違いを、通信の途中で何が見えるかという観点で教えて</button></div></div>
+  </section>
+
+  <!-- ===== 5,6 ===== -->
+  <section>
+    <div class="sec-title"><div class="no">3</div><h2>「落ちない」と「混んでも平気」は別の話</h2></div>
+    <div class="vs">
+      <div class="panel">
+        <h3>1台死んだら？ ＝ <span style="color:var(--teal)">可用性</span></h3>
+        <div class="mini" style="gap:40px">
+          <div class="srv dead">⚙️<small>建物A（AZ-a）</small></div>
+          <div class="srv">⚙️<small>建物B（AZ-b）</small></div>
+        </div>
+        <p class="keyline" style="margin-top:22px">担当者を、別の建物に2人置いておく</p>
+        <p class="desc">冗長化。サーバーを別々の建物（データセンター）に分けて置く（AWSだとマルチAZ）。1人が倒れても、もう1人が受付を続ける。</p>
+        <div class="tatoe" style="display:inline-block">担当者を2人置く</div>
+      </div>
+      <div class="mid">VS</div>
+      <div class="panel">
+        <h3>人が殺到したら？ ＝ <span style="color:var(--coral)">スケーラビリティ</span></h3>
+        <div class="mini">
+          <span class="people">🧑🧑🧑</span><span class="to">→</span>
+          <div class="alb">ロードバランサ<br><span style="font-weight:500;font-size:10px">振り分け係</span></div><span class="to">→</span>
+          <div class="srv">⚙️<small>いつもの</small></div>
+          <div class="srv">⚙️<small>いつもの</small></div>
+          <div class="srv new">＋<small>自動で追加</small></div>
+        </div>
+        <p class="keyline" style="margin-top:22px">窓口を増やして、整理券を配る</p>
+        <p class="desc">ロードバランサ（ALB）が振り分けて、オートスケール（Auto Scaling）が台数を増減させる。<b>仮想サーバーは単体では勝手に増えない。</b></p>
+        <div class="tatoe" style="display:inline-block">窓口を増やして整理券を配る</div>
+      </div>
+    </div>
+    <p class="desc" style="margin-top:10px">🏢 オンプレとクラウドの決定的な違い：サーバーを増やすのに、オンプレは<b>数週間〜数ヶ月</b>（買って、運んで、設置する）。クラウドなら<b>数分</b>。</p>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="可用性とスケーラビリティの違いを、具体的な障害の例で説明して">可用性とスケーラビリティの違いを、具体的な障害の例で説明して</button><button class="chip" type="button" data-q="AWSのマルチAZ構成とは何か、1つのAZが止まったら何が起きるか教えて">AWSのマルチAZ構成とは何か、1つのAZが止まったら何が起きるか教えて</button><button class="chip" type="button" data-q="オートスケールが間に合わないケースと、その対策を教えて">オートスケールが間に合わないケースと、その対策を教えて</button></div></div>
+  </section>
+
+  <!-- ===== 7. コスト ===== -->
+  <section>
+    <div class="sec-title"><div class="no">4</div><h2>お金の話</h2><span class="note">サーバーの「住まい方」で払い方が変わる</span></div>
+    <div class="cost">
+      <div class="house">
+        <div class="ic">🏠</div><div class="what">オンプレ</div><p class="nm">持ち家</p>
+        <ul>
+          <li class="good">全部自分の思いどおりにできる</li>
+          <li class="bad">買うのに時間もお金もかかる</li>
+          <li class="bad">修繕（故障・更新）も全部自分</li>
+        </ul>
+      </div>
+      <div class="house">
+        <div class="ic">🏢</div><div class="what">仮想サーバー<span class="aws">（EC2）</span></div><p class="nm">賃貸</p>
+        <ul>
+          <li class="good">今日からすぐ住める</li>
+          <li class="good">建物の修繕は大家（クラウド事業者）持ち</li>
+          <li class="bad">部屋の中（OS・ミドルウェア）の手入れは自分</li>
+          <li class="bad">留守の日も家賃はかかる（常時稼働）</li>
+        </ul>
+      </div>
+      <div class="house">
+        <div class="ic">🧳</div><div class="what">コンテナ実行基盤<span class="aws">（ECS on Fargate など）</span></div><p class="nm">家具付きマンスリー</p>
+        <ul>
+          <li class="good">荷物（コンテナ）を持ち込めばすぐ住める</li>
+          <li class="good">部屋の中の手入れ（OS）も大家任せ</li>
+          <li class="bad">住んでいる間は家賃がかかる（起動中は課金）</li>
+          <li class="bad">荷造りの仕方（Dockerfile）を覚える必要あり</li>
+        </ul>
+      </div>
+      <div class="house">
+        <div class="ic">🎤</div><div class="what">サーバーレス<span class="aws">（Lambda など）</span></div><p class="nm">時間貸し会議室</p>
+        <ul>
+          <li class="good">使った分だけ払えばいい</li>
+          <li class="good">混んだら勝手に部屋が増える</li>
+          <li class="bad">長時間居座ると割高</li>
+        </ul>
+      </div>
+    </div>
+    <div class="cost2">
+      <div class="box">
+        <h3>🧳 そもそもコンテナって？ ＝ 住まい方ではなく「荷造りの仕方」</h3>
+        <p>アプリと、動かすのに必要なもの（ライブラリ・設定など）を<b>まるごと1つの箱に詰めたもの</b>。</p>
+        <div class="pack"><span>📦 コンテナ</span>→<span>🏠 オンプレ</span><span>🏢 仮想サーバー</span><span>🧳 コンテナ実行基盤</span><span>💻 自分のPC</span></div>
+        <p>同じ箱なら、どの家に持ち込んでも同じように動く。「自分のPCでは動いたのに本番で動かない」が起きにくくなる。</p>
+        <p style="color:var(--sub)">※コンテナ実行基盤（Fargateなど）は「箱を置く部屋の管理まで大家任せ」にできる住まい方の一つ。</p>
+      </div>
+      <div class="chart">
+        <h3>使う量と月額のイメージ</h3>
+        <svg viewBox="0 0 300 170" width="100%" role="img" aria-label="利用量が増えるとサーバーレスの料金が上がり、ある点でEC2より高くなるイメージ図">
+          <line x1="34" y1="140" x2="290" y2="140" stroke="#1f2430" stroke-width="2"/>
+          <line x1="34" y1="140" x2="34" y2="10" stroke="#1f2430" stroke-width="2"/>
+          <text x="290" y="158" font-size="10" text-anchor="end" fill="#5b6170">使う量 →</text>
+          <text x="8" y="16" font-size="10" fill="#5b6170">月額</text>
+          <line x1="34" y1="78" x2="290" y2="78" stroke="#14a39a" stroke-width="3.5"/>
+          <text x="38" y="70" font-size="11" font-weight="700" fill="#14a39a">仮想サーバー（定額）</text>
+          <line x1="34" y1="138" x2="270" y2="18" stroke="#ff6b5b" stroke-width="3.5"/>
+          <text x="286" y="132" font-size="11" text-anchor="end" font-weight="700" fill="#ff6b5b">サーバーレス（従量）</text>
+          <circle cx="152" cy="78" r="6" fill="#ffc93c" stroke="#1f2430" stroke-width="2"/>
+          <line x1="152" y1="84" x2="152" y2="140" stroke="#1f2430" stroke-dasharray="3 3"/>
+          <text x="162" y="98" font-size="10" font-weight="700" fill="#1f2430">← ここで逆転</text>
+        </svg>
+        <p>※概念図。実際の分岐点はスペック・リクエスト数・実行時間で変わる</p>
+      </div>
+    </div>
+    <div class="punch">📌 オチ：「サーバーレス最強」ではない。<b>毎日8時間居座るなら、賃貸（仮想サーバー）の方が安い。</b>使い方に合った住まい方を選ぶのが設計。</div>
+  
+    <div class="dig"><div class="dh">🔎 気になったら、AIに聞いてみよう<small>タップでコピー → いつものAIに貼るだけ</small></div><div class="chips"><button class="chip" type="button" data-q="EC2・Lambda・Fargateの料金の考え方を、小さなWeb APIを例に比べて">EC2・Lambda・Fargateの料金の考え方を、小さなWeb APIを例に比べて</button><button class="chip" type="button" data-q="サーバーレスが向かないシステムの特徴を教えて">サーバーレスが向かないシステムの特徴を教えて</button><button class="chip" type="button" data-q="コンテナとは何か、仮想マシンとの違いを教えて">コンテナとは何か、仮想マシンとの違いを教えて</button></div></div>
+  </section>
+
+  <!-- ===== 確かめよう ===== -->
+  <section>
+    <div class="sec-title"><div class="no">✔</div><h2>自分のブラウザで確かめてみよう</h2></div>
+    <div class="try">
+      <div class="t">
+        <div class="w">1章｜① 住所を緯度経度に変える</div><div class="h">DNSに聞いてみる</div>
+        <code>nslookup example.com</code>
+        <p>ドメイン名（住所）からIPアドレス（緯度経度）が返ってくるのを見る。</p>
+      </div>
+      <div class="t">
+        <div class="w">1章｜サーバーの身分証チェック</div><div class="h">鍵マークをクリック</div>
+        <code>🔒 → 証明書を表示</code>
+        <p>誰が（どの認証局が）身分証を発行したか、有効期限はいつまでかを見る。</p>
+      </div>
+      <div class="t">
+        <div class="w">1章｜②③ 画面・データ ＋ 2章｜返事</div><div class="h">DevToolsのNetworkタブ</div>
+        <code>F12 → Network → リロード</code>
+        <p>HTML/JSの取得とAPIの呼び出しが別々に流れていくのと、ステータスコードを見る。</p>
+      </div>
+    </div>
+  </section>
+
+<div class="next"><a href="index.html"><small>← 目次へ</small>目次</a><a class="r" href="ep2.html"><small>次へ Ep2 →</small>ログインしてから自分のデータだけが見えるまで</a></div>
+  <footer>※構成はAWSを例にした一例です。API Gatewayを使わずにALBが直接受けるなど、システムによって形は変わります。　｜　誰でも分かるインフラ入門 Ep1</footer>
+</div>
+
+<div class="toast" id="toast"></div>
+<script>
+(function(){
+  var SUFFIX = "\n\n※私はアプリ開発者で、インフラは初心者です。たとえ話を使って説明して、最後に参考になる公式ドキュメントも教えてください。";
+  var t = document.getElementById('toast'), timer;
+  function show(msg){ t.textContent = msg; t.classList.add('on'); clearTimeout(timer); timer = setTimeout(function(){ t.classList.remove('on'); }, 2200); }
+  function fallback(text){
+    var ta = document.createElement('textarea'); ta.value = text; ta.setAttribute('readonly','');
+    ta.style.position = 'fixed'; ta.style.opacity = '0'; document.body.appendChild(ta); ta.select();
+    var ok = false; try { ok = document.execCommand('copy'); } catch(e) {}
+    document.body.removeChild(ta); return ok;
+  }
+  document.querySelectorAll('.chip').forEach(function(b){
+    b.addEventListener('click', function(){
+      var text = b.getAttribute('data-q') + SUFFIX;
+      var done = function(){ b.classList.add('done'); show('コピーしました。いつものAIに貼り付けて聞いてみよう'); };
+      if (navigator.clipboard && window.isSecureContext) {
+        navigator.clipboard.writeText(text).then(done, function(){ fallback(text) ? done() : show('コピーできませんでした。長押しで選択してね'); });
+      } else { fallback(text) ? done() : show('コピーできませんでした。長押しで選択してね'); }
+    });
+  });
+})();
+</script>
+
+</body>
+</html>
